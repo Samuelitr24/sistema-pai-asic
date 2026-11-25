@@ -511,6 +511,8 @@ const CATALOGO_BIOLOGICOS_PAI = [
   { nombre: "COVID-19 (Refuerzo)", jeringaAsociada: "Jeringa 0.5 ml (Retráctil)" }
 ];
 
+const BIOLOGICOS_PAI = CATALOGO_BIOLOGICOS_PAI.map((item) => item.nombre);
+
 const PERFILES_VACUNACION: Record<string, string[]> = {
   "Recién Nacido (0-28 días)": ["BCG (Tuberculosis)", "Hepatitis B Pediátrica"],
   "Lactante (< 1 Año)": ["Rotavirus", "Pentavalente (DPT+HB+Hib)", "Polio IPV (Inyectable)", "Polio OPV (Oral / Sabin)", "Neumococo Conjugado"],
@@ -526,7 +528,8 @@ export default function Home() {
   const [cedula, setCedula] = useState("");
   const [claveRegistro, setClaveRegistro] = useState("");
   const [nombre, setNombre] = useState("");
-  const [telefono, setTelefono] = useState("");const [mostrarClave, setMostrarClave] = useState(false);
+  const [telefono, setTelefono] = useState("");
+  const [mostrarClave, setMostrarClave] = useState(false);
 
   const [estadoUser, setEstadoUser] = useState("Anzoátegui");
   const [municipioUser, setMunicipioUser] = useState("Carvajal");
@@ -536,77 +539,11 @@ export default function Home() {
   const [loginCedula, setLoginCedula] = useState("");
   const [loginClave, setLoginClave] = useState("");
   const [errorMensaje, setErrorMensaje] = useState("");
-  const [histForm, setHistForm] = useState({
-  pacienteNombre: "",
-  pacienteDocumento: "",
-  fechaNacimiento: "",
-  vacuna: "",
-  dosis: "1ra Dosis",
-  lote: "",
-  fecha: "",
-  parroquia: parroquiaUser || "Valle Guanape",
-  sector: "",
-});
   const [usuarioAutenticado, setUsuarioAutenticado] = useState<any>(null);
 
   const [pestañaActiva, setPestañaActiva] = useState<string>("registro");
 
   // Edición de Perfil de Funcionario Completa
-
-  const handleGuardarHistorico = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (
-    !histForm.pacienteNombre.trim() ||
-    !histForm.pacienteDocumento.trim() ||
-    !histForm.fechaNacimiento ||
-    !histForm.vacuna.trim() ||
-    !histForm.fecha ||
-    !histForm.lote.trim()
-  ) {
-    alert(
-      "Completa nombres y apellidos, cédula, fecha de nacimiento, biológico, fecha de colocación y lote."
-    );
-    return;
-  }
-
-  const nuevoHist = {
-    id: `HIST-${Date.now()}`,
-    pacienteNombre: histForm.pacienteNombre.trim(),
-    pacienteDocumento: histForm.pacienteDocumento.trim(),
-    fechaNacimiento: histForm.fechaNacimiento,
-    vacuna: histForm.vacuna.trim(),
-    dosis: histForm.dosis,
-    lote: histForm.lote.trim(),
-    fecha: histForm.fecha,
-    direccion: {
-      parroquia: histForm.parroquia.trim(),
-      sector: histForm.sector.trim(),
-    },
-    vacunadorCedula: usuarioAutenticado?.cedula || loginCedula || "",
-    vacunadorNombre: usuarioAutenticado?.nombre || nombre || "",
-    tieneEsavi: false,
-    esHistorico: true,
-  };
-
-  const nuevosHistRegs = [nuevoHist, ...registrosRealizados];
-setRegistrosRealizados(nuevosHistRegs);
-localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs));
-  await syncRegistroVacunaCloud(nuevoHist);
-
-  setHistForm({
-    pacienteNombre: "",
-    pacienteDocumento: "",
-    fechaNacimiento: "",
-    vacuna: "",
-    dosis: "1ra Dosis",
-    lote: "",
-    fecha: "",
-    parroquia: histForm.parroquia,
-    sector: histForm.sector,
-  });
-
-  alert("Registro histórico / Libro PAI guardado sin descontar inventario.");
-};
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [editNombre, setEditNombre] = useState("");
   const [editTelefono, setEditTelefono] = useState("");
@@ -676,8 +613,22 @@ localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs))
   const [esquemaExistente, setEsquemaExistente] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [textoLibroFisico, setTextoLibroFisico] = useState("");
-  const [mensajeLibroExito, setMensajeLibroExito] = useState("");
+  // Estado y guardado del formulario estructurado del Libro Físico Histórico
+  const [libroForm, setLibroForm] = useState({
+    nombres: "",
+    apellidos: "",
+    tipoCedula: "propia",
+    cedula: "",
+    sufijoFamiliar: "-01",
+    fechaNacimiento: "",
+    biologico: "Pentavalente (DPT+HB+Hib)",
+    numeroDosis: "1",
+    lote: "",
+    fechaColocacion: "",
+    condicionEsquema: "Al dia",
+  });
+  const [guardandoLibro, setGuardandoLibro] = useState(false);
+  const [mensajeLibro, setMensajeLibro] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [registrosRealizados, setRegistrosRealizados] = useState<any[]>([]);
   const [mensajeExito, setMensajeExito] = useState(false);
@@ -1204,51 +1155,89 @@ localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs))
     setTimeout(() => setMensajeExito(false), 3000);
   };
 
-  const handleMigrarLibro = async (e: React.FormEvent) => {
+  const handleGuardarLibro = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!textoLibroFisico.trim()) return;
+    setMensajeLibro(null);
 
-    const lineas = textoLibroFisico.split("\n");
-    let count = 0;
-    const agregados: any[] = [];
-    lineas.forEach((linea, idx) => {
-      const p = linea.split(",").map(x => x.trim());
-      if (p.length >= 3) {
-        count++;
-        agregados.push({
-          id: Date.now() + idx,
-          vacunadorCedula: usuarioAutenticado.cedula,
-          vacunadorNombre: usuarioAutenticado.nombre,
-          municipioJurisdiccion: usuarioAutenticado.municipio,
-          parroquiaJurisdiccion: usuarioAutenticado.parroquia,
-          estadoJurisdiccion: usuarioAutenticado.estado,
-          esNuevoPaciente: false,
-          representante: null,
-          pacienteNombre: p[0],
-          pacienteDocumento: p[1],
-          pacienteSexo: "No especificado",
-          grupoEtario: "Transcripción Libro Físico",
-          direccion: { estado: usuarioAutenticado.estado, municipio: usuarioAutenticado.municipio, parroquia: usuarioAutenticado.parroquia, sector: "Archivo", calle: "Histórico", puntoReferencia: "N/A" },
-          tipoActividad: "Intramural",
-          vacuna: p[2],
-          dosis: "Aplicada",
-          lote: "HISTORICO",
-          vencimiento: "N/A",
-          tieneEsavi: false,
-          fecha: p[3] || "Histórico"
-        });
-      }
-    });
-
-    const nuevosRegs = [...agregados, ...registrosRealizados];
-    setRegistrosRealizados(nuevosRegs);
-    localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosRegs));
-    for (const item of agregados) {
-      await syncRegistroVacunaCloud(item);
+    if (
+      !libroForm.nombres.trim() ||
+      !libroForm.apellidos.trim() ||
+      !libroForm.cedula.trim() ||
+      !libroForm.fechaColocacion
+    ) {
+      setMensajeLibro({
+        tipo: "error",
+        texto: "Completa nombres, apellidos, cédula y fecha de colocación.",
+      });
+      return;
     }
-    setMensajeLibroExito(`✓ ¡Se procesaron ${count} registros desde el libro físico!`);
-    setTextoLibroFisico("");
-    setTimeout(() => setMensajeLibroExito(""), 3000);
+
+    setGuardandoLibro(true);
+    try {
+      const cedulaLimpia = libroForm.cedula.trim().toUpperCase();
+      const docFinal =
+        libroForm.tipoCedula === "representante"
+          ? `REP-${cedulaLimpia}${libroForm.sufijoFamiliar || "-01"}`
+          : cedulaLimpia;
+
+      const nuevoReg = {
+        id: Date.now(),
+        vacunadorCedula: usuarioAutenticado?.cedula || "",
+        vacunadorNombre: usuarioAutenticado?.nombre || "",
+        municipioJurisdiccion: usuarioAutenticado?.municipio || municipioUser,
+        parroquiaJurisdiccion: usuarioAutenticado?.parroquia || parroquiaUser,
+        estadoJurisdiccion: usuarioAutenticado?.estado || estadoUser,
+        esNuevoPaciente: libroForm.tipoCedula === "representante",
+        representante:
+          libroForm.tipoCedula === "representante"
+            ? { cedula: cedulaLimpia, nombre: "", hijo: libroForm.sufijoFamiliar || "-01" }
+            : null,
+        pacienteNombre: `${libroForm.nombres.trim()} ${libroForm.apellidos.trim()}`,
+        pacienteDocumento: docFinal,
+        pacienteSexo: "No especificado",
+        fechaNacimiento: libroForm.fechaNacimiento || "",
+        grupoEtario: "Transcripción Libro Físico",
+        direccion: {
+          estado: usuarioAutenticado?.estado || estadoUser,
+          municipio: usuarioAutenticado?.municipio || municipioUser,
+          parroquia: usuarioAutenticado?.parroquia || parroquiaUser,
+          sector: "Archivo Libro Físico",
+          calle: "Histórico",
+          puntoReferencia: "N/A",
+        },
+        tipoActividad: "Intramural",
+        vacuna: libroForm.biologico,
+        dosis: `Dosis ${libroForm.numeroDosis || "1"}`,
+        lote: libroForm.lote.trim().toUpperCase() || "HISTORICO",
+        vencimiento: "N/A",
+        tieneEsavi: false,
+        esHistorico: true,
+        fecha: libroForm.fechaColocacion,
+      };
+
+      const nuevosRegs = [nuevoReg, ...registrosRealizados];
+      setRegistrosRealizados(nuevosRegs);
+      localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosRegs));
+      await syncRegistroVacunaCloud(nuevoReg);
+
+      setMensajeLibro({
+        tipo: "ok",
+        texto: `Guardado: ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`,
+      });
+
+      setLibroForm((prev) => ({
+        ...prev,
+        lote: "",
+        fechaColocacion: "",
+      }));
+    } catch (err: any) {
+      setMensajeLibro({
+        tipo: "error",
+        texto: err?.message || "Error al guardar en Supabase.",
+      });
+    } finally {
+      setGuardandoLibro(false);
+    }
   };
 
   const misRegistros = usuarioAutenticado ? registrosRealizados.filter(r => r.vacunadorCedula === usuarioAutenticado.cedula) : [];
@@ -1472,14 +1461,14 @@ localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs))
                 </div>
                 <div className="relative">
                   <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Contraseña</label>
-                  <input type={mostrarClave ?"text" : "password"} placeholder="••••••••" value={loginClave} onChange={(e) => setLoginClave(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono" required />
-                <button
-  type="button"
-  onClick={() => setMostrarClave((v) => !v)}
-  className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-300 hover:text-white"
->
-  {mostrarClave ? "Ocultar" : "Ver"}
-</button>
+                  <input type={mostrarClave ? "text" : "password"} placeholder="••••••••" value={loginClave} onChange={(e) => setLoginClave(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono" required />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarClave((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-300 hover:text-white"
+                  >
+                    {mostrarClave ? "Ocultar" : "Ver"}
+                  </button>
                 </div>
                 <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-lg">Acceder al Sistema &rarr;</button>
               </form>
@@ -1576,79 +1565,6 @@ localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs))
               </div>
             </div>
 
-{usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "Libro" && (
-  <form onSubmit={handleGuardarHistorico} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-3xl mx-auto space-y-4">
-    <h3 className="text-sm font-bold uppercase text-purple-400">Carga Histórica / Libro PAI</h3>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 mb-1">Nombres y Apellidos</label>
-        <input
-          type="text"
-          value={histForm.pacienteNombre}
-          onChange={(e) => setHistForm({ ...histForm, pacienteNombre: e.target.value })}
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 mb-1">Cédula de Identidad</label>
-        <input
-          type="text"
-          value={histForm.pacienteDocumento}
-          onChange={(e) => setHistForm({ ...histForm, pacienteDocumento: e.target.value })}
-          placeholder="Ej: V-25123456"
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 mb-1">Fecha de Nacimiento</label>
-        <input
-          type="date"
-          value={histForm.fechaNacimiento}
-          onChange={(e) => setHistForm({ ...histForm, fechaNacimiento: e.target.value })}
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 mb-1">Fecha de Colocación (Libro)</label>
-        <input
-          type="date"
-          value={histForm.fecha}
-          onChange={(e) => setHistForm({ ...histForm, fecha: e.target.value })}
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 mb-1">Biológico Colocado</label>
-        <input
-          type="text"
-          value={histForm.vacuna}
-          onChange={(e) => setHistForm({ ...histForm, vacuna: e.target.value })}
-          placeholder="Ej: Pentavalente, SRP, Toxoide..."
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 mb-1">Lote</label>
-        <input
-          type="text"
-          value={histForm.lote}
-          onChange={(e) => setHistForm({ ...histForm, lote: e.target.value })}
-          placeholder="Número de lote del libro"
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
-          required
-        />
-      </div>
-    </div>
-    <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2.5 rounded-xl text-sm">
-      Guardar Registro Histórico (Sin descontar stock)
-    </button>
-  </form>
-)}
             {/* VISTA: VACUNADOR DE CAMPO */}
             {usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "registro" && (
               <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-3xl mx-auto space-y-4 relative">
@@ -1888,11 +1804,190 @@ localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs))
             {usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "libro" && (
               <div className="bg-slate-900 p-6 rounded-2xl border border-purple-800 shadow-xl max-w-2xl mx-auto space-y-4">
                 <h3 className="text-lg font-bold text-purple-300">📖 Transcripción Rápida de Libro Físico</h3>
-                <p className="text-xs text-slate-400">Pega los datos separados por coma: <code className="text-cyan-400 font-mono">Nombre, Cédula/Correlativo, Biológico, Fecha</code></p>
-                {mensajeLibroExito && <div className="p-3 bg-emerald-950 border border-emerald-700 rounded-xl text-xs text-emerald-300">{mensajeLibroExito}</div>}
-                <form onSubmit={handleMigrarLibro} className="space-y-3">
-                  <textarea rows={6} placeholder="Carlos Pérez, REP-15123456-H01-1203, Pentavalente, 12/03/2026" value={textoLibroFisico} onChange={(e) => setTextoLibroFisico(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white font-mono" required></textarea>
-                  <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl text-sm transition-all">Procesar Transcripción &rarr;</button>
+                <form onSubmit={handleGuardarLibro} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/90 p-5 shadow-xl">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Registro de Libro Físico (Histórico)</h3>
+                    <p className="text-xs text-slate-400">Carga estructurada por paciente y biológico aplicado</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Nombres *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Carlos José"
+                        value={libroForm.nombres}
+                        onChange={(e) => setLibroForm({ ...libroForm, nombres: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Apellidos *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Pérez Gómez"
+                        value={libroForm.apellidos}
+                        onChange={(e) => setLibroForm({ ...libroForm, apellidos: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Tipo de Cédula *</label>
+                      <select
+                        value={libroForm.tipoCedula}
+                        onChange={(e) => setLibroForm({ ...libroForm, tipoCedula: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      >
+                        <option value="propia">Cédula Propia</option>
+                        <option value="representante">Cédula Representante (Niño/RN)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Cédula (la que aplique) *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: V-25123456"
+                        value={libroForm.cedula}
+                        onChange={(e) => setLibroForm({ ...libroForm, cedula: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {libroForm.tipoCedula === "representante" ? (
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-300">Sufijo Familiar</label>
+                        <select
+                          value={libroForm.sufijoFamiliar}
+                          onChange={(e) => setLibroForm({ ...libroForm, sufijoFamiliar: e.target.value })}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                        >
+                          <option value="-01">-01 (1er hijo)</option>
+                          <option value="-02">-02 (2do hijo)</option>
+                          <option value="-03">-03 (3er hijo)</option>
+                          <option value="-04">-04 (4to hijo)</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-300">Fecha de Nacimiento</label>
+                        <input
+                          type="date"
+                          value={libroForm.fechaNacimiento}
+                          onChange={(e) => setLibroForm({ ...libroForm, fechaNacimiento: e.target.value })}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Biológico Aplicado *</label>
+                      <select
+                        value={libroForm.biologico}
+                        onChange={(e) => setLibroForm({ ...libroForm, biologico: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      >
+                        {BIOLOGICOS_PAI.map((bio) => (
+                          <option key={bio} value={bio}>
+                            {bio}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Número de Dosis *</label>
+                      <select
+                        value={libroForm.numeroDosis}
+                        onChange={(e) => setLibroForm({ ...libroForm, numeroDosis: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      >
+                        <option value="1">1ra Dosis / Única</option>
+                        <option value="2">2da Dosis</option>
+                        <option value="3">3ra Dosis</option>
+                        <option value="4">1er Refuerzo (4ta)</option>
+                        <option value="5">2do Refuerzo (5ta)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Lote del Biológico</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: LOTE-2026A"
+                        value={libroForm.lote}
+                        onChange={(e) => setLibroForm({ ...libroForm, lote: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm uppercase text-white outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-300">Fecha de Colocación *</label>
+                      <input
+                        type="date"
+                        required
+                        value={libroForm.fechaColocacion}
+                        onChange={(e) => setLibroForm({ ...libroForm, fechaColocacion: e.target.value })}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  {mensajeLibro && (
+                    <div
+                      className={`rounded-xl border px-3 py-2.5 text-xs ${
+                        mensajeLibro.tipo === "ok"
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                          : "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                      }`}
+                    >
+                      {mensajeLibro.texto}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="submit"
+                      disabled={guardandoLibro}
+                      className="flex-1 rounded-xl bg-purple-600 py-3 text-sm font-bold text-white transition hover:bg-purple-500 disabled:opacity-50"
+                    >
+                      {guardandoLibro ? "Guardando datos..." : "Guardar datos"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLibroForm({
+                          nombres: "",
+                          apellidos: "",
+                          tipoCedula: "propia",
+                          cedula: "",
+                          sufijoFamiliar: "-01",
+                          fechaNacimiento: "",
+                          biologico: "Pentavalente (DPT+HB+Hib)",
+                          numeroDosis: "1",
+                          lote: "",
+                          fechaColocacion: "",
+                          condicionEsquema: "Al dia",
+                        });
+                        setMensajeLibro(null);
+                      }}
+                      className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+                    >
+                      Nuevo paciente
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
