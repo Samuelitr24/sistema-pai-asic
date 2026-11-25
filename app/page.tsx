@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./lib/supabase";
 
 export interface Municipio {
   nombre: string;
@@ -525,7 +526,7 @@ export default function Home() {
   const [cedula, setCedula] = useState("");
   const [claveRegistro, setClaveRegistro] = useState("");
   const [nombre, setNombre] = useState("");
-  const [telefono, setTelefono] = useState("");
+  const [telefono, setTelefono] = useState("");const [mostrarClave, setMostrarClave] = useState(false);
 
   const [estadoUser, setEstadoUser] = useState("Anzoátegui");
   const [municipioUser, setMunicipioUser] = useState("Carvajal");
@@ -535,11 +536,77 @@ export default function Home() {
   const [loginCedula, setLoginCedula] = useState("");
   const [loginClave, setLoginClave] = useState("");
   const [errorMensaje, setErrorMensaje] = useState("");
+  const [histForm, setHistForm] = useState({
+  pacienteNombre: "",
+  pacienteDocumento: "",
+  fechaNacimiento: "",
+  vacuna: "",
+  dosis: "1ra Dosis",
+  lote: "",
+  fecha: "",
+  parroquia: parroquiaUser || "Valle Guanape",
+  sector: "",
+});
   const [usuarioAutenticado, setUsuarioAutenticado] = useState<any>(null);
 
   const [pestañaActiva, setPestañaActiva] = useState<string>("registro");
 
   // Edición de Perfil de Funcionario Completa
+
+  const handleGuardarHistorico = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (
+    !histForm.pacienteNombre.trim() ||
+    !histForm.pacienteDocumento.trim() ||
+    !histForm.fechaNacimiento ||
+    !histForm.vacuna.trim() ||
+    !histForm.fecha ||
+    !histForm.lote.trim()
+  ) {
+    alert(
+      "Completa nombres y apellidos, cédula, fecha de nacimiento, biológico, fecha de colocación y lote."
+    );
+    return;
+  }
+
+  const nuevoHist = {
+    id: `HIST-${Date.now()}`,
+    pacienteNombre: histForm.pacienteNombre.trim(),
+    pacienteDocumento: histForm.pacienteDocumento.trim(),
+    fechaNacimiento: histForm.fechaNacimiento,
+    vacuna: histForm.vacuna.trim(),
+    dosis: histForm.dosis,
+    lote: histForm.lote.trim(),
+    fecha: histForm.fecha,
+    direccion: {
+      parroquia: histForm.parroquia.trim(),
+      sector: histForm.sector.trim(),
+    },
+    vacunadorCedula: usuarioAutenticado?.cedula || loginCedula || "",
+    vacunadorNombre: usuarioAutenticado?.nombre || nombre || "",
+    tieneEsavi: false,
+    esHistorico: true,
+  };
+
+  const nuevosHistRegs = [nuevoHist, ...registrosRealizados];
+setRegistrosRealizados(nuevosHistRegs);
+localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosHistRegs));
+  await syncRegistroVacunaCloud(nuevoHist);
+
+  setHistForm({
+    pacienteNombre: "",
+    pacienteDocumento: "",
+    fechaNacimiento: "",
+    vacuna: "",
+    dosis: "1ra Dosis",
+    lote: "",
+    fecha: "",
+    parroquia: histForm.parroquia,
+    sector: histForm.sector,
+  });
+
+  alert("Registro histórico / Libro PAI guardado sin descontar inventario.");
+};
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [editNombre, setEditNombre] = useState("");
   const [editTelefono, setEditTelefono] = useState("");
@@ -591,8 +658,8 @@ export default function Home() {
   const [mensajeInvExito, setMensajeInvExito] = useState("");
 
   const [equiposFrioASIC, setEquiposFrioASIC] = useState<any[]>([
-    { tipo: "Refrigerador Vertical", modelo: "Dometic TCX-200", serial: "REF-V-01", estado: "Operativo (+4°C)" },
-    { tipo: "Cava Térmica", modelo: "Coleman 50QT", serial: "CAV-04", estado: "Operativo con 4 P. Fríos" }
+    { id: "REF-V-01", tipo: "Refrigerador Vertical", modelo: "Dometic TCX-200", serial: "REF-V-01", estado: "Operativo (+4°C)" },
+    { id: "CAV-04", tipo: "Cava Térmica", modelo: "Coleman 50QT", serial: "CAV-04", estado: "Operativo con 4 P. Fríos" }
   ]);
   const [nuevoTipoFrio, setNuevoTipoFrio] = useState("Refrigerador Vertical");
   const [nuevoModeloFrio, setNuevoModeloFrio] = useState("");
@@ -615,9 +682,139 @@ export default function Home() {
   const [registrosRealizados, setRegistrosRealizados] = useState<any[]>([]);
   const [mensajeExito, setMensajeExito] = useState(false);
   const [listaPersonal, setListaPersonal] = useState<any[]>([]);
+  const [estadoSyncCloud, setEstadoSyncCloud] = useState<"conectado" | "sincronizando" | "local">("sincronizando");
 
   // Tarjeta de Vacunación para imprimir / extraer en PDF
   const [tarjetaPacienteDoc, setTarjetaPacienteDoc] = useState<string | null>(null);
+
+  // Helpers de sincronización con Supabase
+  const syncFuncionarioCloud = async (funcObj: any) => {
+    try {
+      await supabase.from("pai_funcionarios").upsert({
+        id: String(funcObj.id || funcObj.codigo || funcObj.cedula),
+        cedula: funcObj.cedula,
+        nombre: funcObj.nombre,
+        telefono: funcObj.telefono || "",
+        rol: funcObj.rol,
+        estado: funcObj.estado || "",
+        municipio: funcObj.municipio || "",
+        parroquia: funcObj.parroquia || "",
+        password_hash: funcObj.clave || "",
+        payload: funcObj
+      }, { onConflict: "cedula" });
+    } catch (e) {
+      console.error("Error sync funcionario:", e);
+    }
+  };
+
+  const syncRegistroVacunaCloud = async (regObj: any) => {
+    try {
+      await supabase.from("pacientes").upsert({
+        id: `PAC-${regObj.pacienteDocumento}`,
+        documento_identidad: regObj.pacienteDocumento,
+        tipo_documento: regObj.esNuevoPaciente ? "CORRELATIVO" : "V",
+        nombre_completo: regObj.pacienteNombre,
+        fecha_nacimiento: regObj.fechaNacimiento || "",
+        sexo: regObj.pacienteSexo || "",
+        representante_nombre: regObj.representante?.nombre || "",
+        representante_cedula: regObj.representante?.cedula || "",
+        telefono: "",
+        estado: regObj.direccion?.estado || "",
+        municipio: regObj.direccion?.municipio || "",
+        parroquia: regObj.direccion?.parroquia || "",
+        payload: {
+          pacienteNombre: regObj.pacienteNombre,
+          pacienteDocumento: regObj.pacienteDocumento,
+          pacienteSexo: regObj.pacienteSexo,
+          fechaNacimiento: regObj.fechaNacimiento,
+          representante: regObj.representante,
+          fotoPacienteUrl: regObj.fotoPacienteUrl
+        }
+      }, { onConflict: "id" });
+
+      await supabase.from("vacunas_aplicadas").upsert({
+        id: String(regObj.id),
+        paciente_id: `PAC-${regObj.pacienteDocumento}`,
+        paciente_documento: regObj.pacienteDocumento,
+        paciente_nombre: regObj.pacienteNombre,
+        biologico: regObj.vacuna,
+        dosis: regObj.dosis,
+        lote: regObj.lote || "",
+        fecha_aplicacion: regObj.fecha,
+        establecimiento: `${regObj.direccion?.parroquia || ""} - ${regObj.direccion?.sector || ""}`,
+        vacunador_cedula: regObj.vacunadorCedula || "",
+        vacunador_nombre: regObj.vacunadorNombre || "",
+        observaciones_esavi: regObj.tieneEsavi ? `${regObj.esaviDetalle?.severidad}: ${regObj.esaviDetalle?.sintomas}` : "",
+        payload: regObj
+      }, { onConflict: "id" });
+    } catch (e) {
+      console.error("Error sync vacuna:", e);
+    }
+  };
+
+  const syncLoteCloud = async (loteObj: any) => {
+    try {
+      const idLote = `LOTE-${loteObj.vacuna}-${loteObj.lote}`.replace(/\s+/g, "_");
+      await supabase.from("inventarios_biologicos_asic").upsert({
+        id: idLote,
+        categoria: "biologico",
+        nombre: loteObj.vacuna,
+        lote: loteObj.lote,
+        fecha_vencimiento: loteObj.vencimiento || "",
+        cantidad_disponible: Number(loteObj.cantidad || 0),
+        estado_lote: Number(loteObj.cantidad || 0) > 0 ? "activo" : "agotado",
+        payload: loteObj,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "id" });
+    } catch (e) {
+      console.error("Error sync lote:", e);
+    }
+  };
+
+  const syncDescartablesCloud = async (descObj: typeof stockDescartables) => {
+    try {
+      const items = [
+        { id: "DESC-J01", nombre: "Jeringas 0.1 ml (BCG)", cantidad: descObj.jeringas01ml },
+        { id: "DESC-J05", nombre: "Jeringas 0.5 ml (Retráctiles)", cantidad: descObj.jeringas05ml },
+        { id: "DESC-J5", nombre: "Jeringas 5 ml (Reconstitución)", cantidad: descObj.jeringas5ml },
+        { id: "DESC-BIO", nombre: "Cajas de Bioseguridad", cantidad: descObj.cajasBioseguridad }
+      ];
+      for (const it of items) {
+        await supabase.from("inventarios_biologicos_asic").upsert({
+          id: it.id,
+          categoria: "jeringa",
+          nombre: it.nombre,
+          lote: "DESCARTABLE",
+          fecha_vencimiento: "2028-12-31",
+          cantidad_disponible: Number(it.cantidad),
+          estado_lote: "activo",
+          payload: descObj,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "id" });
+      }
+    } catch (e) {
+      console.error("Error sync descartables:", e);
+    }
+  };
+
+  const syncEquipoFrioCloud = async (eqObj: any) => {
+    try {
+      const idEq = `EQ-${eqObj.serial || eqObj.id || Date.now()}`;
+      await supabase.from("equipos_cadena_frio").upsert({
+        id: idEq,
+        codigo_equipo: eqObj.serial || idEq,
+        tipo_equipo: eqObj.tipo,
+        marca_modelo: eqObj.modelo,
+        ubicacion_establecimiento: eqObj.ubicacion || "ASIC",
+        temperatura_actual: 4,
+        estado_operativo: eqObj.estado || "Operativo",
+        payload: eqObj,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "id" });
+    } catch (e) {
+      console.error("Error sync equipo frio:", e);
+    }
+  };
 
   useEffect(() => {
     const personal = localStorage.getItem("pai_lista_personal");
@@ -637,6 +834,99 @@ export default function Home() {
       setLoteInventarioVacunas(inicial);
       localStorage.setItem("pai_lotes_vacunas", JSON.stringify(inicial));
     }
+
+    const cargarDesdeSupabase = async () => {
+      setEstadoSyncCloud("sincronizando");
+      try {
+        const [resFunc, resVac, resInv, resFrio] = await Promise.all([
+          supabase.from("pai_funcionarios").select("*"),
+          supabase.from("vacunas_aplicadas").select("*").order("created_at", { ascending: false }),
+          supabase.from("inventarios_biologicos_asic").select("*"),
+          supabase.from("equipos_cadena_frio").select("*")
+        ]);
+
+        if (resFunc.data && resFunc.data.length > 0) {
+          const mappedFunc = resFunc.data.map((row: any) => row.payload && Object.keys(row.payload).length > 0 ? row.payload : {
+            id: row.id,
+            codigo: row.id,
+            nombre: row.nombre,
+            cedula: row.cedula,
+            telefono: row.telefono,
+            estado: row.estado,
+            municipio: row.municipio,
+            parroquia: row.parroquia,
+            clave: row.password_hash,
+            rol: row.rol
+          });
+          setListaPersonal(mappedFunc);
+          localStorage.setItem("pai_lista_personal", JSON.stringify(mappedFunc));
+        }
+
+        if (resVac.data && resVac.data.length > 0) {
+          const mappedVac = resVac.data.map((row: any) => row.payload && Object.keys(row.payload).length > 0 ? row.payload : {
+            id: Number(row.id) || Date.now(),
+            vacunadorCedula: row.vacunador_cedula,
+            vacunadorNombre: row.vacunador_nombre,
+            pacienteNombre: row.paciente_nombre,
+            pacienteDocumento: row.paciente_documento,
+            vacuna: row.biologico,
+            dosis: row.dosis,
+            lote: row.lote,
+            fecha: row.fecha_aplicacion,
+            tieneEsavi: Boolean(row.observaciones_esavi)
+          });
+          setRegistrosRealizados(mappedVac);
+          localStorage.setItem("pai_registros_vacunacion", JSON.stringify(mappedVac));
+        }
+
+        if (resInv.data && resInv.data.length > 0) {
+          const lotesCloud = resInv.data
+            .filter((r: any) => r.categoria === "biologico")
+            .map((r: any) => ({
+              vacuna: r.nombre,
+              lote: r.lote,
+              vencimiento: r.fecha_vencimiento,
+              cantidad: Number(r.cantidad_disponible ?? 0)
+            }));
+          if (lotesCloud.length > 0) {
+            setLoteInventarioVacunas(lotesCloud);
+            localStorage.setItem("pai_lotes_vacunas", JSON.stringify(lotesCloud));
+          }
+
+          const descRows = resInv.data.filter((r: any) => r.categoria === "jeringa");
+          if (descRows.length > 0) {
+            setStockDescartables((prev) => {
+              const next = { ...prev };
+              for (const dr of descRows) {
+                if (dr.id === "DESC-J01") next.jeringas01ml = Number(dr.cantidad_disponible ?? prev.jeringas01ml);
+                if (dr.id === "DESC-J05") next.jeringas05ml = Number(dr.cantidad_disponible ?? prev.jeringas05ml);
+                if (dr.id === "DESC-J5") next.jeringas5ml = Number(dr.cantidad_disponible ?? prev.jeringas5ml);
+                if (dr.id === "DESC-BIO") next.cajasBioseguridad = Number(dr.cantidad_disponible ?? prev.cajasBioseguridad);
+              }
+              return next;
+            });
+          }
+        }
+
+        if (resFrio.data && resFrio.data.length > 0) {
+          const mappedFrio = resFrio.data.map((r: any) => r.payload && Object.keys(r.payload).length > 0 ? r.payload : {
+            id: r.id,
+            tipo: r.tipo_equipo,
+            modelo: r.marca_modelo,
+            serial: r.codigo_equipo,
+            estado: r.estado_operativo
+          });
+          setEquiposFrioASIC(mappedFrio);
+        }
+
+        setEstadoSyncCloud("conectado");
+      } catch (e) {
+        console.error("Error cargando desde Supabase:", e);
+        setEstadoSyncCloud("local");
+      }
+    };
+
+    cargarDesdeSupabase();
   }, []);
 
   useEffect(() => {
@@ -653,7 +943,7 @@ export default function Home() {
       setFotoPacienteUrl("");
       return;
     }
-    const previo = registrosRealizados.find(r => r.pacienteDocumento.toLowerCase() === busquedaDoc.trim().toLowerCase());
+    const previo = registrosRealizados.find(r => r.pacienteDocumento?.toLowerCase() === busquedaDoc.trim().toLowerCase());
     if (previo) {
       setEsquemaExistente(true);
       setPacienteNombre(previo.pacienteNombre);
@@ -724,7 +1014,7 @@ export default function Home() {
     }
   };
 
-  const handleRegistroTrabajador = (e: React.FormEvent) => {
+  const handleRegistroTrabajador = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMensaje("");
     if (!cedula.trim() || !nombre.trim() || !claveRegistro.trim() || !telefono.trim()) return;
@@ -751,6 +1041,7 @@ export default function Home() {
     const actualizada = [nuevo, ...listaPersonal];
     setListaPersonal(actualizada);
     localStorage.setItem("pai_lista_personal", JSON.stringify(actualizada));
+    await syncFuncionarioCloud(nuevo);
 
     setUsuarioAutenticado({
       cedula: cedula.trim(), nombre: nombre.trim(), telefono: telefono.trim(),
@@ -781,7 +1072,7 @@ export default function Home() {
     else setPestañaActiva("registro");
   };
 
-  const handleGuardarEdicionPerfil = (e: React.FormEvent) => {
+  const handleGuardarEdicionPerfil = async (e: React.FormEvent) => {
     e.preventDefault();
     const actualizado = {
       ...usuarioAutenticado,
@@ -796,11 +1087,12 @@ export default function Home() {
     const listaAct = listaPersonal.map(p => p.cedula === actualizado.cedula ? { ...p, ...actualizado } : p);
     setListaPersonal(listaAct);
     localStorage.setItem("pai_lista_personal", JSON.stringify(listaAct));
+    await syncFuncionarioCloud(actualizado);
     setEditandoPerfil(false);
     alert("✓ Ficha y adscripción de ASIC actualizadas correctamente.");
   };
 
-  const handleCargarLoteInventario = (e: React.FormEvent) => {
+  const handleCargarLoteInventario = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loteCargar || !vencCargar || cantCargar <= 0) return;
 
@@ -808,6 +1100,7 @@ export default function Home() {
     const actualizado = [nuevoLote, ...loteInventarioVacunas];
     setLoteInventarioVacunas(actualizado);
     localStorage.setItem("pai_lotes_vacunas", JSON.stringify(actualizado));
+    await syncLoteCloud(nuevoLote);
 
     setMensajeInvExito(`✓ Lote ${loteCargar} de ${vacunaCargarInv} cargado al inventario.`);
     setLoteCargar("");
@@ -815,27 +1108,38 @@ export default function Home() {
     setTimeout(() => setMensajeInvExito(""), 4000);
   };
 
-  const handleAgregarEquipoFrio = (e: React.FormEvent) => {
+  const handleAgregarEquipoFrio = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoModeloFrio || !nuevoSerialFrio) return;
-    const nuevo = { tipo: nuevoTipoFrio, modelo: nuevoModeloFrio, serial: nuevoSerialFrio, estado: "Operativo" };
+    const nuevo = {
+      id: `EQ-${nuevoSerialFrio.trim()}-${Date.now()}`,
+      tipo: nuevoTipoFrio,
+      modelo: nuevoModeloFrio.trim(),
+      serial: nuevoSerialFrio.trim(),
+      ubicacion: `ASIC ${usuarioAutenticado?.municipio || ""}`,
+      estado: "Operativo"
+    };
     setEquiposFrioASIC([...equiposFrioASIC, nuevo]);
+    await syncEquipoFrioCloud(nuevo);
     setNuevoModeloFrio("");
     setNuevoSerialFrio("");
   };
 
-  const handleGuardarVacunacion = (e: React.FormEvent) => {
+  const handleGuardarVacunacion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pacienteNombre || !sectorManual.trim() || !calle) return;
 
     const loteIndex = loteInventarioVacunas.findIndex(l => l.vacuna === vacunaSeleccionada && l.cantidad > 0);
     let loteUsado = loteVacuna || "GENERAL-2026";
     let vencUsado = vencimientoVacuna || "2027-12-31";
+    let loteActualizadoObj: any = null;
+
+    const copiaLotes = [...loteInventarioVacunas];
     if (loteIndex !== -1) {
-      loteUsado = loteInventarioVacunas[loteIndex].lote;
-      vencUsado = loteInventarioVacunas[loteIndex].vencimiento || vencUsado;
-      const copiaLotes = [...loteInventarioVacunas];
+      loteUsado = copiaLotes[loteIndex].lote;
+      vencUsado = copiaLotes[loteIndex].vencimiento || vencUsado;
       copiaLotes[loteIndex].cantidad -= 1;
+      loteActualizadoObj = copiaLotes[loteIndex];
       setLoteInventarioVacunas(copiaLotes);
       localStorage.setItem("pai_lotes_vacunas", JSON.stringify(copiaLotes));
     }
@@ -884,6 +1188,10 @@ export default function Home() {
     setRegistrosRealizados(nuevosRegs);
     localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosRegs));
 
+    await syncRegistroVacunaCloud(nuevoReg);
+    if (loteActualizadoObj) await syncLoteCloud(loteActualizadoObj);
+    await syncDescartablesCloud(desc);
+
     setMensajeExito(true);
     setBusquedaDoc("");
     setPacienteNombre("");
@@ -896,7 +1204,7 @@ export default function Home() {
     setTimeout(() => setMensajeExito(false), 3000);
   };
 
-  const handleMigrarLibro = (e: React.FormEvent) => {
+  const handleMigrarLibro = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!textoLibroFisico.trim()) return;
 
@@ -935,6 +1243,9 @@ export default function Home() {
     const nuevosRegs = [...agregados, ...registrosRealizados];
     setRegistrosRealizados(nuevosRegs);
     localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosRegs));
+    for (const item of agregados) {
+      await syncRegistroVacunaCloud(item);
+    }
     setMensajeLibroExito(`✓ ¡Se procesaron ${count} registros desde el libro físico!`);
     setTextoLibroFisico("");
     setTimeout(() => setMensajeLibroExito(""), 3000);
@@ -969,10 +1280,13 @@ export default function Home() {
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 md:p-8 font-sans print:bg-white print:text-black print:p-0">
       <header className="w-full max-w-6xl mx-auto bg-slate-900/90 backdrop-blur shadow-2xl rounded-2xl p-6 border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="w-2.5 h-2.5 bg-cyan-400 rounded-full animate-ping"></span>
             <span className="text-xs font-bold tracking-wider text-cyan-400 uppercase bg-cyan-950/90 px-3 py-1 rounded-full border border-cyan-800/60">
               Sistema PAI Venezuela &bull; Módulo Oficial Terreno
+            </span>
+            <span className={`text-[10px] font-mono px-2.5 py-1 rounded-full border ${estadoSyncCloud === "conectado" ? "bg-emerald-950/80 text-emerald-300 border-emerald-800" : estadoSyncCloud === "sincronizando" ? "bg-amber-950/80 text-amber-300 border-amber-800" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+              {estadoSyncCloud === "conectado" ? "☁️ Supabase Activo" : estadoSyncCloud === "sincronizando" ? "↻ Sincronizando..." : "💾 Modo Local"}
             </span>
           </div>
           <h1 className="text-2xl font-extrabold text-white mt-2">
@@ -1156,9 +1470,16 @@ export default function Home() {
                   <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Cédula de Identidad</label>
                   <input type="text" placeholder="Ej: V-25123456" value={loginCedula} onChange={(e) => setLoginCedula(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono" required />
                 </div>
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">Contraseña</label>
-                  <input type="password" placeholder="••••••••" value={loginClave} onChange={(e) => setLoginClave(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono" required />
+                  <input type={mostrarClave ?"text" : "password"} placeholder="••••••••" value={loginClave} onChange={(e) => setLoginClave(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono" required />
+                <button
+  type="button"
+  onClick={() => setMostrarClave((v) => !v)}
+  className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-300 hover:text-white"
+>
+  {mostrarClave ? "Ocultar" : "Ver"}
+</button>
                 </div>
                 <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-lg">Acceder al Sistema &rarr;</button>
               </form>
@@ -1255,6 +1576,79 @@ export default function Home() {
               </div>
             </div>
 
+{usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "Libro" && (
+  <form onSubmit={handleGuardarHistorico} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-3xl mx-auto space-y-4">
+    <h3 className="text-sm font-bold uppercase text-purple-400">Carga Histórica / Libro PAI</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label className="block text-xs font-semibold text-slate-300 mb-1">Nombres y Apellidos</label>
+        <input
+          type="text"
+          value={histForm.pacienteNombre}
+          onChange={(e) => setHistForm({ ...histForm, pacienteNombre: e.target.value })}
+          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-300 mb-1">Cédula de Identidad</label>
+        <input
+          type="text"
+          value={histForm.pacienteDocumento}
+          onChange={(e) => setHistForm({ ...histForm, pacienteDocumento: e.target.value })}
+          placeholder="Ej: V-25123456"
+          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-300 mb-1">Fecha de Nacimiento</label>
+        <input
+          type="date"
+          value={histForm.fechaNacimiento}
+          onChange={(e) => setHistForm({ ...histForm, fechaNacimiento: e.target.value })}
+          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-300 mb-1">Fecha de Colocación (Libro)</label>
+        <input
+          type="date"
+          value={histForm.fecha}
+          onChange={(e) => setHistForm({ ...histForm, fecha: e.target.value })}
+          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-300 mb-1">Biológico Colocado</label>
+        <input
+          type="text"
+          value={histForm.vacuna}
+          onChange={(e) => setHistForm({ ...histForm, vacuna: e.target.value })}
+          placeholder="Ej: Pentavalente, SRP, Toxoide..."
+          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-300 mb-1">Lote</label>
+        <input
+          type="text"
+          value={histForm.lote}
+          onChange={(e) => setHistForm({ ...histForm, lote: e.target.value })}
+          placeholder="Número de lote del libro"
+          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white"
+          required
+        />
+      </div>
+    </div>
+    <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2.5 rounded-xl text-sm">
+      Guardar Registro Histórico (Sin descontar stock)
+    </button>
+  </form>
+)}
             {/* VISTA: VACUNADOR DE CAMPO */}
             {usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "registro" && (
               <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-3xl mx-auto space-y-4 relative">
