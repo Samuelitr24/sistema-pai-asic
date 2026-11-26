@@ -541,6 +541,49 @@ export default function Home() {
   const [errorMensaje, setErrorMensaje] = useState("");
   const [usuarioAutenticado, setUsuarioAutenticado] = useState<any>(null);
 
+  const claveInventarioASIC = `pai_inventario_${usuarioAutenticado?.estado || "general"}_${usuarioAutenticado?.municipio || "asic"}`;
+
+  useEffect(() => {
+    if (!usuarioAutenticado) return;
+    try {
+      const guardado = localStorage.getItem(claveInventarioASIC);
+      if (guardado) {
+        const data = JSON.parse(guardado);
+        setEquiposFrioASIC(Array.isArray(data.equipos) ? data.equipos : []);
+        setInventarioLotesASIC(Array.isArray(data.lotes) ? data.lotes : []);
+        if (data.descartables) {
+          setStockDescartables({
+            jeringas01ml: Number(data.descartables.jeringas01ml ?? 0),
+            jeringas05ml: Number(data.descartables.jeringas05ml ?? 0),
+            jeringas5ml: Number(data.descartables.jeringas5ml ?? 0),
+            cajasBioseguridad: Number(data.descartables.cajasBioseguridad ?? 0),
+          });
+        }
+      } else {
+        setEquiposFrioASIC([]);
+        setInventarioLotesASIC([]);
+        setStockDescartables({
+          jeringas01ml: 0,
+          jeringas05ml: 0,
+          jeringas5ml: 0,
+          cajasBioseguridad: 0,
+        });
+      }
+    } catch (e) {
+      console.error("Error leyendo inventario local:", e);
+    }
+  }, [usuarioAutenticado, claveInventarioASIC]);
+
+  const guardarInventarioLocal = (equipos: any[], lotes: any[], descartables: any) => {
+    try {
+      localStorage.setItem(
+        claveInventarioASIC,
+        JSON.stringify({ equipos, lotes, descartables })
+      );
+    } catch (e) {
+      console.error("Error guardando inventario local:", e);
+    }
+  };
   const [pestañaActiva, setPestañaActiva] = useState<string>("registro");
 
   // Edición de Perfil de Funcionario Completa
@@ -614,33 +657,6 @@ const [nuevaCantidadLote, setNuevaCantidadLote] = useState("");
 const [nuevoVencimientoLote, setNuevoVencimientoLote] = useState("");
 const [tipoInsumoCargar, setTipoInsumoCargar] = useState<"jeringas01ml" | "jeringas05ml" | "jeringas5ml" | "cajasBioseguridad">("jeringas05ml");
 const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
-const claveInventarioASIC = `pai_inventario_${usuarioAutenticado?.estado || "general"}_${usuarioAutenticado?.municipio || "asic"}`;
-
-useEffect(() => {
-  if (!usuarioAutenticado) return;
-  try {
-    const guardado = localStorage.getItem(claveInventarioASIC);
-    if (guardado) {
-      const data = JSON.parse(guardado);
-      if (Array.isArray(data.equipos)) setEquiposFrioASIC(data.equipos);
-      if (Array.isArray(data.lotes)) setInventarioLotesASIC(data.lotes);
-      if (data.descartables) setStockDescartables(data.descartables);
-    }
-  } catch (e) {
-    console.error("Error leyendo inventario local:", e);
-  }
-}, [usuarioAutenticado, claveInventarioASIC]);
-
-const guardarInventarioLocal = (equipos: any[], lotes: any[], descartables: any) => {
-  try {
-    localStorage.setItem(
-      claveInventarioASIC,
-      JSON.stringify({ equipos, lotes, descartables })
-    );
-  } catch (e) {
-    console.error("Error guardando inventario local:", e);
-  }
-};
 
   const [fotoPacienteUrl, setFotoPacienteUrl] = useState<string>("");
   const [esquemaExistente, setEsquemaExistente] = useState<boolean>(false);
