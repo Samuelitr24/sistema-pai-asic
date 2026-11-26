@@ -1154,6 +1154,188 @@ export default function Home() {
     setFotoPacienteUrl("");
     setTimeout(() => setMensajeExito(false), 3000);
   };
+  const escaparHTML = (texto: any) =>
+    String(texto ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const exportarReportePDF = (registrosAExportar: any[], tituloReporte = "Reporte Consolidado PAI") => {
+    const ventana = window.open("", "_blank", "width=1024,height=768");
+    if (!ventana) {
+      alert("Permite las ventanas emergentes en tu navegador para generar el PDF.");
+      return;
+    }
+
+    const filasHTML = registrosAExportar
+      .map((r: any, idx: number) => {
+        const docMostrado = r.pacienteDocumento || r.documento || "S/D";
+        const nombreMostrado = r.pacienteNombre || r.nombre || "Sin nombre";
+        const biologicoMostrado = r.vacuna || r.biologico || "N/A";
+        const dosisMostrada = r.dosis || r.numeroDosis || "N/A";
+        const loteMostrado = r.lote || "N/A";
+        const fechaMostrada = r.fechaAplicacion || r.fecha || "N/A";
+        const esInc = Boolean(r.esInclusion);
+        const paisInc = r.paisInclusion ? ` (${r.paisInclusion})` : "";
+        const inclusionBadge = esInc
+          ? `<span style="background:#e0e7ff;color:#3730a3;padding:2px 6px;border-radius:4px;font-weight:700;font-size:10px;">INCLUSIÓN${escaparHTML(paisInc)}</span>`
+          : `<span style="color:#64748b;font-size:10px;">Regular</span>`;
+
+        return `
+          <tr>
+            <td>${idx + 1}</td>
+            <td style="font-family:monospace;font-weight:600;">${escaparHTML(docMostrado)}</td>
+            <td>${escaparHTML(nombreMostrado)}</td>
+            <td>${escaparHTML(biologicoMostrado)}</td>
+            <td>${escaparHTML(dosisMostrada)}</td>
+            <td style="font-family:monospace;">${escaparHTML(loteMostrado)}</td>
+            <td>${escaparHTML(fechaMostrada)}</td>
+            <td>${inclusionBadge}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    ventana.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>${escaparHTML(tituloReporte)}</title>
+        <style>
+          body { font-family: Arial, Helvetica, sans-serif; margin: 24px; color: #0f172a; }
+          .header { border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+          h1 { font-size: 18px; margin: 0 0 4px 0; }
+          .meta { font-size: 11px; color: #475569; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { background: #1e293b; color: #ffffff; text-align: left; padding: 7px 8px; }
+          td { border-bottom: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: middle; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .footer { margin-top: 18px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+          @media print { .no-print { display: none; } body { margin: 10px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1>${escaparHTML(tituloReporte)}</h1>
+            <div class="meta">Programa Ampliado de Inmunización (PAI) — ASIC Valle Guanape / Sistema PAI</div>
+          </div>
+          <div class="meta" style="text-align:right;">
+            <div><strong>Total registros:</strong> ${registrosAExportar.length}</div>
+            <div><strong>Emitido:</strong> ${escaparHTML(new Date().toLocaleString("es-VE"))}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Documento / ID</th>
+              <th>Paciente</th>
+              <th>Biológico</th>
+              <th>Dosis</th>
+              <th>Lote</th>
+              <th>Fecha</th>
+              <th>Condición</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filasHTML || `<tr><td colspan="8" style="text-align:center;padding:16px;">No hay registros para mostrar.</td></tr>`}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>Generado por Sistema PAI ASIC</span>
+          <span class="no-print"><button onclick="window.print()">Guardar / Imprimir PDF</button></span>
+        </div>
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+        </script>
+      </body>
+      </html>
+    `);
+    ventana.document.close();
+  };
+
+  const exportarTarjetaPDF = (registro: any) => {
+    const ventana = window.open("", "_blank", "width=720,height=540");
+    if (!ventana) {
+      alert("Permite las ventanas emergentes en tu navegador para generar la tarjeta en PDF.");
+      return;
+    }
+
+    const docMostrado = registro.pacienteDocumento || registro.documento || "S/D";
+    const nombreMostrado = registro.pacienteNombre || registro.nombre || "Sin nombre";
+    const biologicoMostrado = registro.vacuna || registro.biologico || "N/A";
+    const dosisMostrada = registro.dosis || registro.numeroDosis || "N/A";
+    const loteMostrado = registro.lote || "N/A";
+    const fechaMostrada = registro.fechaAplicacion || registro.fecha || "N/A";
+    const establecimiento =
+      registro.direccion?.parroquia ||
+      registro.direccion?.municipio ||
+      "ASIC Valle Guanape";
+
+    const bloqueInclusion = registro.esInclusion
+      ? `<div style="margin-top:12px;padding:10px 12px;background:#eef2ff;border-left:4px solid #4f46e5;border-radius:6px;font-size:12px;color:#1e1b4b;">
+           <strong>REGISTRO POR INCLUSIÓN</strong> — Antecedente / tarjeta extranjera.
+           ${registro.paisInclusion ? `<br/><strong>País de dosis previas:</strong> ${escaparHTML(registro.paisInclusion)}` : ""}
+         </div>`
+      : "";
+
+    ventana.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Tarjeta PAI - ${escaparHTML(nombreMostrado)}</title>
+        <style>
+          body { font-family: Arial, Helvetica, sans-serif; background: #f1f5f9; padding: 24px; color: #0f172a; }
+          .card { max-width: 620px; margin: 0 auto; background: #ffffff; border: 2px solid #1e293b; border-radius: 12px; padding: 20px 24px; }
+          .top { display: flex; justify-content: space-between; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; margin-bottom: 14px; }
+          .title { font-size: 16px; font-weight: 700; margin: 0; }
+          .sub { font-size: 11px; color: #475569; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; font-size: 12px; }
+          .label { font-size: 10px; text-transform: uppercase; color: #64748b; display: block; }
+          .val { font-weight: 600; font-size: 13px; }
+          .mono { font-family: monospace; }
+          .foot { margin-top: 16px; padding-top: 10px; border-top: 1px dashed #cbd5e1; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+          @media print { body { background: #ffffff; padding: 0; } .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="top">
+            <div>
+              <p class="title">Constancia / Tarjeta de Vacunación PAI</p>
+              <div class="sub">Programa Ampliado de Inmunización — ${escaparHTML(establecimiento)}</div>
+            </div>
+            <div class="sub" style="text-align:right;">
+              <div><strong>Fecha emisión:</strong></div>
+              <div>${escaparHTML(new Date().toLocaleDateString("es-VE"))}</div>
+            </div>
+          </div>
+          <div class="grid">
+            <div><span class="label">Paciente</span><span class="val">${escaparHTML(nombreMostrado)}</span></div>
+            <div><span class="label">Documento / Dependiente</span><span class="val mono">${escaparHTML(docMostrado)}</span></div>
+            <div><span class="label">Biológico / Vacuna</span><span class="val">${escaparHTML(biologicoMostrado)}</span></div>
+            <div><span class="label">Dosis</span><span class="val">${escaparHTML(dosisMostrada)}</span></div>
+            <div><span class="label">Lote</span><span class="val mono">${escaparHTML(loteMostrado)}</span></div>
+            <div><span class="label">Fecha de aplicación</span><span class="val">${escaparHTML(fechaMostrada)}</span></div>
+          </div>
+          ${bloqueInclusion}
+          <div class="foot">
+            <span>Sistema PAI ASIC — Registro válido para control y transcripción</span>
+            <span class="no-print"><button onclick="window.print()">Imprimir / Guardar PDF</button></span>
+          </div>
+        </div>
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+        </script>
+      </body>
+      </html>
+    `);
+    ventana.document.close();
+  };
 
   const handleGuardarLibro = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1205,6 +1387,8 @@ export default function Home() {
           calle: "Histórico",
           puntoReferencia: "N/A",
         },
+        esInclusion,
+        paisInclusion: esInclusion ? paisInclusion.trim() : "",
         tipoActividad: "Intramural",
         vacuna: libroForm.biologico,
         dosis: `Dosis ${libroForm.numeroDosis || "1"}`,
@@ -1215,14 +1399,28 @@ export default function Home() {
         fecha: libroForm.fechaColocacion,
       };
 
-      const nuevosRegs = [nuevoReg, ...registrosRealizados];
+const nuevosRegs = [nuevoReg, ...registrosRealizados];
       setRegistrosRealizados(nuevosRegs);
       localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosRegs));
-      await syncRegistroVacunaCloud(nuevoReg);
+
+      let guardadoOffline = false;
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        encolarRegistroOffline(nuevoReg, "vacunacion");
+        guardadoOffline = true;
+      } else {
+        try {
+          await syncRegistroVacunaCloud(nuevoReg);
+        } catch {
+          encolarRegistroOffline(nuevoReg, "vacunacion");
+          guardadoOffline = true;
+        }
+      }
 
       setMensajeLibro({
         tipo: "ok",
-        texto: `Guardado: ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`,
+        texto: guardadoOffline
+          ? `Guardado sin conexión (pendiente por subir): ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`
+          : `Guardado: ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`,
       });
 
       setLibroForm((prev) => ({
@@ -1264,6 +1462,233 @@ export default function Home() {
     ? registrosRealizados.filter(r => r.pacienteDocumento === tarjetaPacienteDoc)
     : [];
   const cabeceraTarjeta = historialTarjeta[0] || null;
+  // Punto 2: Filtros avanzados (fecha, biológico, demografía) y exportación a Excel
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [filtroBiologico, setFiltroBiologico] = useState("TODOS");
+  const [filtroSexo, setFiltroSexo] = useState<"TODOS" | "Masculino" | "Femenino">("TODOS");
+  const [filtroGrupoEtario, setFiltroGrupoEtario] = useState("TODOS");
+  const [filtroParroquia, setFiltroParroquia] = useState("TODAS");
+  const [filtroBusqueda, setFiltroBusqueda] = useState("");
+
+  const normalizarFechaISO = (valorFecha: any): string => {
+    if (!valorFecha) return "";
+    const str = String(valorFecha).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+    const partes = str.split(" ")[0].split("/");
+    if (partes.length === 3) {
+      const [d, m, y] = partes;
+      if (y && y.length === 4) {
+        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      }
+    }
+    return "";
+  };
+
+  const aplicarFiltrosPAI = (baseRegistros: any[]) => {
+    const texto = filtroBusqueda.trim().toLowerCase();
+    return baseRegistros.filter((r) => {
+      const fechaISO = normalizarFechaISO(r.fecha);
+      if (filtroFechaDesde && (!fechaISO || fechaISO < filtroFechaDesde)) return false;
+      if (filtroFechaHasta && (!fechaISO || fechaISO > filtroFechaHasta)) return false;
+
+      if (filtroBiologico !== "TODOS" && r.vacuna !== filtroBiologico) return false;
+      if (filtroSexo !== "TODOS" && r.pacienteSexo !== filtroSexo) return false;
+      if (filtroGrupoEtario !== "TODOS" && r.grupoEtario !== filtroGrupoEtario) return false;
+      if (filtroParroquia !== "TODAS" && r.direccion?.parroquia !== filtroParroquia) return false;
+
+      if (texto) {
+        const campos = [
+          r.pacienteNombre,
+          r.pacienteDocumento,
+          r.direccion?.sector,
+          r.direccion?.parroquia,
+          r.vacunadorNombre,
+          r.lote,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!campos.includes(texto)) return false;
+      }
+      return true;
+    });
+  };
+
+  const registrosASICFiltrados = aplicarFiltrosPAI(registrosJurisdiccionASIC);
+  const registrosRegionalFiltrados = aplicarFiltrosPAI(registrosEstadales);
+  const [esInclusion, setEsInclusion] = useState<boolean>(false);
+const [paisInclusion, setPaisInclusion] = useState<string>("");
+const [numeroHijoDependiente, setNumeroHijoDependiente] = useState<string>("H1");
+const CLAVE_COLA_OFFLINE_PAI = "pai_asic_cola_offline_v1";
+  const [estaOnline, setEstaOnline] = useState<boolean>(
+    typeof window !== "undefined" ? window.navigator.onLine : true
+  );
+  const [pendientesOffline, setPendientesOffline] = useState<any[]>([]);
+  const [sincronizandoOffline, setSincronizandoOffline] = useState<boolean>(false);
+
+  const leerColaOffline = (): any[] => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = window.localStorage.getItem(CLAVE_COLA_OFFLINE_PAI);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const guardarColaOffline = (lista: any[]) => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(CLAVE_COLA_OFFLINE_PAI, JSON.stringify(lista));
+    setPendientesOffline(lista);
+  };
+
+  const encolarRegistroOffline = (registro: any, tablaDestino: string) => {
+    const actual = leerColaOffline();
+    const itemCola = {
+      idLocal:
+        registro?.idLocal ||
+        `offline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      tablaDestino,
+      payload: { ...registro },
+      creadoEn: new Date().toISOString(),
+    };
+    const actualizada = [...actual, itemCola];
+    guardarColaOffline(actualizada);
+    return itemCola;
+  };
+
+  const sincronizarColaOffline = async () => {
+    if (typeof window === "undefined" || !window.navigator.onLine) return;
+    const cola = leerColaOffline();
+    if (cola.length === 0 || sincronizandoOffline) return;
+
+    setSincronizandoOffline(true);
+    const restantes: any[] = [];
+
+    for (const item of cola) {
+for (const item of cola) {
+      try {
+        await syncRegistroVacunaCloud(item.payload);
+      } catch {
+        restantes.push(item);
+      }
+    }
+    }
+
+    guardarColaOffline(restantes);
+    setSincronizandoOffline(false);
+  };
+
+  useEffect(() => {
+    setPendientesOffline(leerColaOffline());
+
+    const manejarOnline = () => {
+      setEstaOnline(true);
+      sincronizarColaOffline();
+    };
+    const manejarOffline = () => {
+      setEstaOnline(false);
+    };
+
+    window.addEventListener("online", manejarOnline);
+    window.addEventListener("offline", manejarOffline);
+
+    if (window.navigator.onLine) {
+      sincronizarColaOffline();
+    }
+
+    return () => {
+      window.removeEventListener("online", manejarOnline);
+      window.removeEventListener("offline", manejarOffline);
+    };
+  }, []);
+
+const construirDocumentoDependiente = (
+  nacionalidadRepresentante: "V" | "E",
+  cedulaRepresentante: string,
+  numeroHijo: string
+) => {
+  const cedulaLimpia = (cedulaRepresentante || "").replace(/\D/g, "");
+  const sufijo = (numeroHijo || "H1").toUpperCase().trim();
+  if (!cedulaLimpia) return "";
+  return `${nacionalidadRepresentante}-${cedulaLimpia}-${sufijo}`;
+};
+
+  const exportarRegistrosExcel = (filas: any[], nombreArchivo: string) => {
+    const encabezados = [
+      "ID",
+      "Fecha",
+      "Paciente",
+      "Documento / ID",
+      "Sexo",
+      "Fecha Nacimiento",
+      "Grupo Etario",
+      "Estado",
+      "Municipio / ASIC",
+      "Parroquia",
+      "Sector",
+      "Modalidad",
+      "Biologico",
+      "Dosis",
+      "Lote",
+      "Vacunador",
+      "ESAVI",
+      "Detalle ESAVI",
+      "Es Inclusión",
+      "País Inclusión",
+    ];
+
+    const escaparCSV = (val: any) => {
+      const limpio = String(val ?? "").replace(/"/g, '""');
+      return `"${limpio}"`;
+    };
+
+    const lineas = [
+      encabezados.map(escaparCSV).join(";"),
+      ...filas.map((r) =>
+        [
+          r.id,
+          r.fecha,
+          r.pacienteNombre,
+          r.pacienteDocumento,
+          r.pacienteSexo,
+          r.fechaNacimiento || "",
+          r.grupoEtario || "",
+          r.direccion?.estado || r.estadoJurisdiccion || "",
+          r.direccion?.municipio || r.municipioJurisdiccion || "",
+          r.direccion?.parroquia || r.parroquiaJurisdiccion || "",
+          r.direccion?.sector || "",
+          r.tipoActividad || "",
+          r.vacuna || "",
+          r.dosis || "",
+          r.lote || "",
+          r.vacunadorNombre || "",
+          r.tieneEsavi ? "SI" : "NO",
+          r.tieneEsavi
+            ? `${r.esaviDetalle?.severidad || ""}: ${r.esaviDetalle?.sintomas || ""}`
+            : "",
+            r.esInclusion ? "Sí" : "No",
+        r.esInclusion ? (r.paisInclusion || "No especificado") : "—",
+        ]
+          .map(escaparCSV)
+          .join(";")
+      ),
+    ];
+
+    const blob = new Blob(["\uFEFF" + lineas.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 md:p-8 font-sans print:bg-white print:text-black print:p-0">
@@ -1305,6 +1730,35 @@ export default function Home() {
                 Salir
               </button>
             </div>
+            <div className="flex items-center gap-2 text-xs">
+  <span
+    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border ${
+      estaOnline
+        ? "bg-emerald-950/70 text-emerald-300 border-emerald-700/60"
+        : "bg-amber-950/80 text-amber-300 border-amber-700/60"
+    }`}
+  >
+    <span
+      className={`h-2 w-2 rounded-full ${
+        estaOnline ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
+      }`}
+    />
+    {estaOnline ? "En línea" : "Sin conexión"}
+  </span>
+
+  {pendientesOffline.length > 0 && (
+    <button
+      type="button"
+      disabled={!estaOnline || sincronizandoOffline}
+      onClick={sincronizarColaOffline}
+      className="px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold transition-all"
+    >
+      {sincronizandoOffline
+        ? "Sincronizando..."
+        : `⬆️ Sincronizar (${pendientesOffline.length})`}
+    </button>
+  )}
+</div>
           </div>
         )}
       </header>
@@ -1869,14 +2323,49 @@ export default function Home() {
                           onChange={(e) => setLibroForm({ ...libroForm, sufijoFamiliar: e.target.value })}
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
                         >
-                          <option value="-01">-01 (1er hijo)</option>
-                          <option value="-02">-02 (2do hijo)</option>
-                          <option value="-03">-03 (3er hijo)</option>
-                          <option value="-04">-04 (4to hijo)</option>
+       <option value="H1">H1 (1er hijo/dependiente)</option>
+                <option value="H2">H2 (2do hijo/dependiente)</option>
+                <option value="H3">H3 (3er hijo/dependiente)</option>
+                <option value="H4">H4 (4to hijo/dependiente)</option>
+                <option value="H5">H5 (5to hijo/dependiente)</option>
+                <option value="H6">H6 (6to hijo/dependiente)</option>
                         </select>
                       </div>
                     ) : (
+                      
                       <div>
+                        <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 mt-3">
+                <label className="flex items-center gap-2.5 text-xs text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={esInclusion}
+                    onChange={(e) => {
+                      setEsInclusion(e.target.checked);
+                      if (!e.target.checked) setPaisInclusion("");
+                    }}
+                    className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
+                  />
+                  <span className="font-semibold text-indigo-300">
+                    🌎 Registro por Inclusión (Transcripción de tarjeta extranjera / antecedente fuera de Venezuela)
+                  </span>
+                </label>
+
+                {esInclusion && (
+                  <div>
+                    <label className="block text-[10px] text-slate-400 uppercase mb-1">
+                      País donde se aplicaron las dosis previas *
+                    </label>
+                    <input
+                      type="text"
+                      required={esInclusion}
+                      placeholder="Ej: Colombia, Brasil, Ecuador, Perú, Chile, España..."
+                      value={paisInclusion}
+                      onChange={(e) => setPaisInclusion(e.target.value)}
+                      className="w-full bg-slate-900 border border-indigo-700/60 rounded-xl px-3 py-2 text-white text-xs"
+                    />
+                  </div>
+                )}
+              </div>
                         <label className="mb-1 block text-xs font-medium text-slate-300">Fecha de Nacimiento</label>
                         <input
                           type="date"
@@ -1887,6 +2376,7 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
@@ -2007,9 +2497,14 @@ export default function Home() {
                         )}
                         <div className="font-bold text-white">{r.pacienteNombre}</div>
                         <div className="text-[10px] text-cyan-400 font-mono">Doc: {r.pacienteDocumento}</div>
-                        {r.representante && (
-                          <div className="text-[10px] text-purple-300">Rep: {r.representante.nombre} (C.I: {r.representante.cedula})</div>
-                        )}
+{r.representante && (
+                      <div className="text-[10px] text-purple-300">Rep: {r.representante.nombre} (C.I: {r.representante.cedula})</div>
+                    )}
+                    {r.esInclusion && (
+                      <div className="text-[10px] text-indigo-300 font-semibold">
+                        🌎 Inclusión: {r.paisInclusion || "País no especificado"}
+                      </div>
+                    )}
                         <div className="text-slate-300 text-[10px]">📍 {r.direccion?.parroquia} - {r.direccion?.sector}</div>
                         <div className="text-emerald-400 font-mono font-semibold mt-1">{r.vacuna} ({r.dosis})</div>
                         <div className="text-amber-300 text-[10px]">🏷️ Lote: {r.lote} | Prox. Cita: {r.proximaCita || "N/A"}</div>
@@ -2026,128 +2521,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-
-            {/* VISTA: COORDINADOR ASIC (INVENTARIO FRÍO, MODELOS Y JERINGAS CON DESCUENTO) */}
-            {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "inventario" && (
-              <div className="space-y-6 max-w-4xl mx-auto">
-
-                <div className="bg-slate-900 p-6 rounded-2xl border border-cyan-800/80 shadow-xl space-y-4">
-                  <h3 className="text-md font-bold text-cyan-400">❄️ Control de Cadena de Frío (ASIC {usuarioAutenticado.municipio})</h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {equiposFrioASIC.map((eq, idx) => (
-                      <div key={idx} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
-                        <span className="text-cyan-400 font-bold uppercase block">{eq.tipo}</span>
-                        <div className="text-white font-semibold">Modelo: {eq.modelo}</div>
-                        <div className="text-slate-400 font-mono">Serial: {eq.serial}</div>
-                        <span className="inline-block bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded text-[10px] border border-emerald-800 font-bold">{eq.estado}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <form onSubmit={handleAgregarEquipoFrio} className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-3 border-t border-slate-800">
-                    <div>
-                      <select value={nuevoTipoFrio} onChange={(e) => setNuevoTipoFrio(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white">
-                        <option value="Refrigerador Vertical">Refrigerador Vertical</option>
-                        <option value="Refrigerador Horizontal">Refrigerador Horizontal</option>
-                        <option value="Cava Térmica">Cava Térmica</option>
-                        <option value="Termómetro / Data Logger">Termómetro / Data Logger</option>
-                        <option value="Paquetes Fríos">Paquetes Fríos</option>
-                      </select>
-                    </div>
-                    <div>
-                      <input type="text" placeholder="Modelo (Ej: Dometic TCX)" value={nuevoModeloFrio} onChange={(e) => setNuevoModeloFrio(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white" required />
-                    </div>
-                    <div>
-                      <input type="text" placeholder="Serial o Identificador" value={nuevoSerialFrio} onChange={(e) => setNuevoSerialFrio(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono" required />
-                    </div>
-                    <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-1.5 rounded-lg text-xs transition-all">
-                      + Agregar Equipo
-                    </button>
-                  </form>
-                </div>
-
-                <div className="bg-slate-900 p-6 rounded-2xl border border-emerald-800/80 shadow-xl space-y-4">
-                  <h3 className="text-md font-bold text-emerald-400">💉 Stock de Descartables y Jeringas (Descuento Automático al Vacunar)</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Jeringas 0.1 ml (BCG)</span>
-                      <span className="text-xl font-bold font-mono text-emerald-400 mt-1 block">{stockDescartables.jeringas01ml} unds</span>
-                    </div>
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Jeringas 0.5 ml (Retráctiles)</span>
-                      <span className="text-xl font-bold font-mono text-emerald-400 mt-1 block">{stockDescartables.jeringas05ml} unds</span>
-                    </div>
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Jeringas 5 ml (Reconstitución)</span>
-                      <span className="text-xl font-bold font-mono text-emerald-400 mt-1 block">{stockDescartables.jeringas5ml} unds</span>
-                    </div>
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-center">
-                      <span className="text-[10px] text-slate-400 uppercase block">Cajas de Bioseguridad</span>
-                      <span className="text-xl font-bold font-mono text-amber-400 mt-1 block">{stockDescartables.cajasBioseguridad} unds</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900 p-6 rounded-2xl border border-amber-800/80 shadow-xl space-y-4">
-                  <h3 className="text-md font-bold text-amber-400">📥 Cargar Lotes de Vacunas y Fechas de Vencimiento</h3>
-                  {mensajeInvExito && <div className="p-3 bg-emerald-950 border border-emerald-700 rounded-xl text-xs text-emerald-300 font-semibold">{mensajeInvExito}</div>}
-                  <form onSubmit={handleCargarLoteInventario} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="md:col-span-2">
-                      <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Biológico PAI</label>
-                      <select value={vacunaCargarInv} onChange={(e) => setVacunaCargarInv(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
-                        {CATALOGO_BIOLOGICOS_PAI.map(v => <option key={v.nombre} value={v.nombre}>{v.nombre}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Número de Lote</label>
-                      <input type="text" placeholder="Ej: LOT-2026-XYZ" value={loteCargar} onChange={(e) => setLoteCargar(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono" required />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Fecha de Vencimiento</label>
-                      <input type="date" value={vencCargar} onChange={(e) => setVencCargar(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono" required />
-                    </div>
-                    <div className="md:col-span-4 flex gap-3 items-end pt-1">
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Cantidad Dosis</label>
-                        <input type="number" min={1} value={cantCargar} onChange={(e) => setCantCargar(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono" required />
-                      </div>
-                      <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg">
-                        + Registrar Lote
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-                  <h3 className="text-md font-bold text-white">📦 Lotes Activos y Fechas de Vencimiento en ASIC</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 text-amber-400 uppercase">
-                        <tr>
-                          <th className="p-3">Biológico</th>
-                          <th className="p-3">Lote</th>
-                          <th className="p-3">Vencimiento</th>
-                          <th className="p-3">Disponibles</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {loteInventarioVacunas.map((l, idx) => (
-                          <tr key={idx} className="hover:bg-slate-950/50">
-                            <td className="p-3 font-semibold text-white">{l.vacuna}</td>
-                            <td className="p-3 font-mono text-cyan-300">{l.lote}</td>
-                            <td className="p-3 font-mono text-amber-300">{l.vencimiento}</td>
-                            <td className="p-3 font-mono font-bold text-emerald-400">{l.cantidad} dosis</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* VISTA: COORDINADOR ASIC (CONSOLIDADO) */}
+{/* VISTA: COORDINADOR ASIC (CONSOLIDADO) */}
             {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "coordinacion" && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2164,31 +2538,475 @@ export default function Home() {
                     <span className="text-2xl font-bold font-mono text-amber-400 mt-1 block">{registrosJurisdiccionASIC.filter(r => r.tieneEsavi).length} Casos</span>
                   </div>
                 </div>
-              </div>
-            )}
+<div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-cyan-400 uppercase">
+                        🔎 Filtros Avanzados y Exportación ({registrosASICFiltrados.length} registros)
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Filtra por rango de fecha, biológico, sexo, grupo etario, parroquia o palabra clave.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroFechaDesde("");
+                          setFiltroFechaHasta("");
+                          setFiltroBiologico("TODOS");
+                          setFiltroSexo("TODOS");
+                          setFiltroGrupoEtario("TODOS");
+                          setFiltroParroquia("TODAS");
+                          setFiltroBusqueda("");
+                        }}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl border border-slate-700"
+                      >
+                        Limpiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          exportarRegistrosExcel(
+                            registrosASICFiltrados,
+                            `PAI_ASIC_${usuarioAutenticado.municipio || "Consolidado"}`
+                          )
+                        }
+                        className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
+                      >
+                        📊 Exportar Excel
+                      </button>
+                    </div>
+                  </div>
 
-            {/* VISTA: COORDINADOR REGIONAL */}
-            {usuarioAutenticado.rol === "Coordinador Regional PAI" && (
-              <div className="space-y-6">
-                <div className="p-4 bg-indigo-950/60 rounded-2xl border border-indigo-800 flex justify-between items-center">
-                  <div>
-                    <h2 className="text-lg font-bold text-indigo-300">🏛️ Nivel Estadal: Resumen Consolidado</h2>
-                    <p className="text-xs text-indigo-200">Seguimiento macro de todas las ASIC del Estado {usuarioAutenticado.estado}.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Desde</label>
+                      <input
+                        type="date"
+                        value={filtroFechaDesde}
+                        onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Hasta</label>
+                      <input
+                        type="date"
+                        value={filtroFechaHasta}
+                        onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Biológico</label>
+                      <select
+                        value={filtroBiologico}
+                        onChange={(e) => setFiltroBiologico(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODOS">Todos los biológicos</option>
+                        {CATALOGO_BIOLOGICOS_PAI.map((b: any) => (
+                          <option key={b.nombre} value={b.nombre}>
+                            {b.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Sexo</label>
+                      <select
+                        value={filtroSexo}
+                        onChange={(e) => setFiltroSexo(e.target.value as any)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODOS">Todos</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Femenino">Femenino</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Grupo Etario</label>
+                      <select
+                        value={filtroGrupoEtario}
+                        onChange={(e) => setFiltroGrupoEtario(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODOS">Todos los grupos</option>
+                        <option value="Recién Nacido (0-28 días)">Recién Nacido (0-28 días)</option>
+                        <option value="Lactante (< 1 Año)">Lactante (&lt; 1 Año)</option>
+                        <option value="Niños (1 a 5 Años)">Niños (1 a 5 Años)</option>
+                        <option value="Adolescente / Adulto">Adolescente / Adulto</option>
+                        <option value="Gestante / Embarazada">Gestante / Embarazada</option>
+                        <option value="Transcripción Libro Físico">Transcripción Libro Físico</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Parroquia</label>
+                      <select
+                        value={filtroParroquia}
+                        onChange={(e) => setFiltroParroquia(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODAS">Todas las parroquias</option>
+                        {parroquiasDisponiblesUser.map((p: string) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Buscar (Paciente, Cédula, Sector, Lote)</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Valle Guanape, V-25..., Pentavalente..."
+                        value={filtroBusqueda}
+                        onChange={(e) => setFiltroBusqueda(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
                   </div>
                 </div>
+                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-md font-bold text-cyan-400">👥 Funcionarios a Cargo — ASIC {usuarioAutenticado.municipio}</h3>
+                      <p className="text-xs text-slate-400">Equipo registrado y activo bajo tu jurisdicción municipal/ASIC.</p>
+                    </div>
+                    <span className="text-xs font-mono bg-slate-950 border border-slate-800 text-cyan-300 px-3 py-1.5 rounded-lg self-start sm:self-auto">
+                      Total: {equipoVacunadoresASIC.length}
+                    </span>
+                  </div>
+
+                  {equipoVacunadoresASIC.length === 0 ? (
+                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
+                      No hay funcionarios registrados en este ASIC todavía.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-slate-950 text-cyan-400 uppercase">
+                          <tr>
+                            <th className="p-3">Funcionario</th>
+                            <th className="p-3">Cédula / Usuario</th>
+                            <th className="p-3">Rol / Cargo</th>
+                            <th className="p-3">Establecimiento / Punto</th>
+                            <th className="p-3">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {equipoVacunadoresASIC.map((func: any, idx: number) => (
+                            <tr key={func.id || idx} className="hover:bg-slate-950/60">
+                              <td className="p-3 font-semibold text-white">
+                                {func.nombre || func.nombreCompleto || func.nombres || "Funcionario sin nombre"}
+                              </td>
+                              <td className="p-3 font-mono text-slate-300">
+                                {func.cedula || func.documento || func.correo || func.email || "—"}
+                              </td>
+                              <td className="p-3 text-cyan-300">
+                                {func.rol || func.cargo || "Vacunador / Operativo"}
+                              </td>
+                              <td className="p-3 text-slate-300">
+                                {func.establecimiento || func.centro || func.ambulatorio || func.punto || func.municipio || usuarioAutenticado.municipio || "—"}
+                              </td>
+                              <td className="p-3">
+                                <span className="inline-block bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded text-[10px] border border-emerald-800 font-bold">
+                                  {func.estatus || func.activo === false ? (func.estatus || "Inactivo") : "Activo"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-md font-bold text-emerald-400">
+                        💉 Dosis Registradas en ASIC ({registrosASICFiltrados.length})
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Resultados según los filtros activos en la jurisdicción de {usuarioAutenticado.municipio}.
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono bg-slate-950 border border-slate-800 text-emerald-300 px-3 py-1.5 rounded-lg self-start sm:self-auto">
+                      Mostrando: {registrosASICFiltrados.length} de {registrosJurisdiccionASIC.length}
+                    </span>
+                  </div>
+
+                  {registrosASICFiltrados.length === 0 ? (
+                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
+                      No hay dosis que coincidan con los filtros seleccionados.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-slate-950 text-emerald-400 uppercase">
+                          <tr>
+                            <th className="p-3">Fecha</th>
+                            <th className="p-3">Paciente / ID</th>
+                            <th className="p-3">Demografía</th>
+                            <th className="p-3">Ubicación</th>
+                            <th className="p-3">Biológico / Dosis</th>
+                            <th className="p-3">ESAVI</th>
+                            <th className="p-3">Tarjeta</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {registrosASICFiltrados.map((r: any) => (
+                            <tr key={r.id} className="hover:bg-slate-950/60">
+                              <td className="p-3 font-mono text-slate-400 whitespace-nowrap">{r.fecha}</td>
+                              <td className="p-3">
+                                <div className="font-semibold text-white">{r.pacienteNombre}</div>
+                                <div className="text-[10px] font-mono text-cyan-400">{r.pacienteDocumento}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-slate-200">{r.pacienteSexo || "—"}</div>
+                                <div className="text-[10px] text-slate-400">{r.grupoEtario || "—"}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-slate-200">{r.direccion?.parroquia || r.parroquiaJurisdiccion || "—"}</div>
+                                <div className="text-[10px] text-cyan-300">{r.direccion?.sector || "—"}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-semibold text-emerald-300">{r.vacuna}</div>
+                                <div className="text-[10px] font-mono text-slate-400">
+                                  {r.dosis} {r.lote ? `• Lote: ${r.lote}` : ""}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                {r.tieneEsavi ? (
+                                  <span className="inline-block bg-amber-950 text-amber-300 px-2 py-0.5 rounded text-[10px] border border-amber-700 font-bold">
+                                    {r.esaviDetalle?.severidad || "ESAVI"}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500">No</span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setTarjetaPacienteDoc(r.pacienteDocumento)}
+                                  className="bg-slate-800 hover:bg-cyan-950 text-cyan-300 border border-slate-700 px-2.5 py-1 rounded-lg text-[10px] font-bold"
+                                >
+                                  🪪 Ver
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+{/* VISTA: COORDINADOR REGIONAL */}
+            {usuarioAutenticado.rol === "Coordinador Regional PAI" && pestañaActiva === "regional" && (
+              <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-                    <span className="text-xs text-slate-400 uppercase">Total Dosis Estadales</span>
-                    <span className="text-2xl font-bold font-mono text-emerald-400 mt-1 block">{registrosEstadales.length} Dosis</span>
+                    <span className="text-xs text-slate-400 uppercase">Dosis Aplicadas en {usuarioAutenticado.estado}</span>
+                    <span className="text-2xl font-bold font-mono text-indigo-400 mt-1 block">{registrosEstadales.length} Dosis</span>
                   </div>
                   <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-                    <span className="text-xs text-slate-400 uppercase">Alertas ESAVI</span>
-                    <span className="text-2xl font-bold font-mono text-amber-400 mt-1 block">{registrosEstadales.filter(r => r.tieneEsavi).length} Casos</span>
+                    <span className="text-xs text-slate-400 uppercase">Personal Registrado</span>
+                    <span className="text-2xl font-bold font-mono text-cyan-400 mt-1 block">{listaPersonal.length} Funcionarios</span>
                   </div>
                   <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-                    <span className="text-xs text-slate-400 uppercase">Funcionarios Regionales</span>
-                    <span className="text-2xl font-bold font-mono text-cyan-400 mt-1 block">{listaPersonal.filter(p => p.estado === usuarioAutenticado.estado).length} Personas</span>
+                    <span className="text-xs text-slate-400 uppercase">Alertas ESAVI Estadales</span>
+                    <span className="text-2xl font-bold font-mono text-amber-400 mt-1 block">{registrosEstadales.filter((r: any) => r.tieneEsavi).length} Casos</span>
                   </div>
+                </div>
+
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-indigo-400 uppercase">
+                        🔎 Filtros Estadales y Exportación ({registrosRegionalFiltrados.length} registros)
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Filtra por fecha, biológico, sexo, grupo etario o búsqueda en {usuarioAutenticado.estado}.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroFechaDesde("");
+                          setFiltroFechaHasta("");
+                          setFiltroBiologico("TODOS");
+                          setFiltroSexo("TODOS");
+                          setFiltroGrupoEtario("TODOS");
+                          setFiltroParroquia("TODAS");
+                          setFiltroBusqueda("");
+                        }}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl border border-slate-700"
+                      >
+                        Limpiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          exportarRegistrosExcel(
+                            registrosRegionalFiltrados,
+                            `PAI_REGIONAL_${usuarioAutenticado.estado || "Estadal"}`
+                          )
+                        }
+                        className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
+                      >
+                        📊 Exportar Excel
+                      </button>
+                      <button
+  type="button"
+  onClick={() =>
+    exportarReportePDF(
+      registrosRegionalFiltrados,
+      `Reporte PAI Regional — ${usuarioAutenticado?.estado || "Estadal"}`
+    )
+  }
+  className="text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
+>
+  📄 Exportar PDF
+</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Desde</label>
+                      <input
+                        type="date"
+                        value={filtroFechaDesde}
+                        onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Hasta</label>
+                      <input
+                        type="date"
+                        value={filtroFechaHasta}
+                        onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Biológico</label>
+                      <select
+                        value={filtroBiologico}
+                        onChange={(e) => setFiltroBiologico(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODOS">Todos los biológicos</option>
+                        {CATALOGO_BIOLOGICOS_PAI.map((b: any) => (
+                          <option key={b.nombre} value={b.nombre}>
+                            {b.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Sexo</label>
+                      <select
+                        value={filtroSexo}
+                        onChange={(e) => setFiltroSexo(e.target.value as any)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODOS">Todos</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Femenino">Femenino</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Grupo Etario</label>
+                      <select
+                        value={filtroGrupoEtario}
+                        onChange={(e) => setFiltroGrupoEtario(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="TODOS">Todos los grupos</option>
+                        <option value="Recién Nacido (0-28 días)">Recién Nacido (0-28 días)</option>
+                        <option value="Lactante (< 1 Año)">Lactante (&lt; 1 Año)</option>
+                        <option value="Niños (1 a 5 Años)">Niños (1 a 5 Años)</option>
+                        <option value="Adolescente / Adulto">Adolescente / Adulto</option>
+                        <option value="Gestante / Embarazada">Gestante / Embarazada</option>
+                        <option value="Transcripción Libro Físico">Transcripción Libro Físico</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <label className="block text-[10px] text-slate-400 uppercase mb-1">Buscar (Municipio, Parroquia, Paciente, Biológico)</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Carvajal, Valle Guanape, BCG..."
+                        value={filtroBusqueda}
+                        onChange={(e) => setFiltroBusqueda(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-md font-bold text-indigo-400">
+                      📋 Consolidado Estadal Filtrado ({registrosRegionalFiltrados.length})
+                    </h3>
+                    <span className="text-xs font-mono text-slate-400">
+                      Total estadal: {registrosEstadales.length}
+                    </span>
+                  </div>
+
+                  {registrosRegionalFiltrados.length === 0 ? (
+                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-400">
+                      No hay registros estadales con los filtros actuales.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-slate-950 text-indigo-400 uppercase">
+                          <tr>
+                            <th className="p-3">Fecha</th>
+                            <th className="p-3">Municipio / ASIC</th>
+                            <th className="p-3">Paciente / ID</th>
+                            <th className="p-3">Biológico / Dosis</th>
+                            <th className="p-3">ESAVI</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {registrosRegionalFiltrados.map((r: any) => (
+                            <tr key={r.id} className="hover:bg-slate-950/60">
+                              <td className="p-3 font-mono text-slate-400 whitespace-nowrap">{r.fecha}</td>
+                              <td className="p-3">
+                                <div className="font-semibold text-white">{r.municipioJurisdiccion || r.direccion?.municipio || "—"}</div>
+                                <div className="text-[10px] text-slate-400">{r.parroquiaJurisdiccion || r.direccion?.parroquia || "—"}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-semibold text-white">{r.pacienteNombre}</div>
+                                <div className="text-[10px] font-mono text-cyan-400">{r.pacienteDocumento}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-emerald-300 font-semibold">{r.vacuna}</div>
+                                <div className="text-[10px] font-mono text-slate-400">{r.dosis}</div>
+                              </td>
+                              <td className="p-3">
+                                {r.tieneEsavi ? (
+                                  <span className="inline-block bg-amber-950 text-amber-300 px-2 py-0.5 rounded text-[10px] border border-amber-700 font-bold">
+                                    Sí
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500">No</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
