@@ -2009,8 +2009,9 @@ const construirDocumentoDependiente = (
                 )}
                 {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && (
                   <>
+                  <button onClick={() => setPestañaActiva("inventario")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "inventario" ? "bg-amber-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📦 Frío, Lotes y Descartables</button>
                     <button onClick={() => setPestañaActiva("coordinacion")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "coordinacion" ? "bg-cyan-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📋 Consolidado ASIC & ESAVI</button>
-                    <button onClick={() => setPestañaActiva("inventario")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "inventario" ? "bg-amber-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📦 Frío, Lotes y Descartables</button>
+                    
                   </>
                 )}
                 {usuarioAutenticado.rol === "Coordinador Regional PAI" && (
@@ -2520,7 +2521,143 @@ const construirDocumentoDependiente = (
                   ))}
                 </div>
               </div>
-            )}
+            )}{/* VISTA: COORDINADOR ASIC (INVENTARIO: FRÍO, LOTES Y DESCARTABLES) */}
+{usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "inventario" && (
+  <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-5xl mx-auto space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
+      <div>
+        <h2 className="text-base font-bold text-amber-400">
+          📦 Inventario Operativo ASIC — Frío, Lotes y Descartables
+        </h2>
+        <p className="text-xs text-slate-400">
+          {usuarioAutenticado.estado} • Municipio / ASIC: {usuarioAutenticado.municipio}
+        </p>
+      </div>
+    </div>
+
+    {/* 1. Equipos de Cadena de Frío */}
+    <div className="space-y-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+        ❄️ Equipos de Cadena de Frío ({equiposFrioASIC.length})
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {equiposFrioASIC.map((eq: any, idx: number) => (
+          <div key={eq.id || idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
+            <div className="font-bold text-white">{eq.tipo} — {eq.modelo}</div>
+            <div className="text-slate-400 font-mono">ID/Serial: {eq.serial || eq.id}</div>
+            <div className="text-emerald-400">{eq.estado}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
+        <select
+          value={nuevoTipoFrio}
+          onChange={(e) => setNuevoTipoFrio(e.target.value)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+        >
+          <option value="Refrigerador Vertical">Refrigerador Vertical</option>
+          <option value="Cava Térmica">Cava Térmica</option>
+          <option value="Congelador / Ultracongelador">Congelador / Ultracongelador</option>
+        </select>
+        <input
+          type="text"
+          placeholder="Modelo (ej: RCW-50)"
+          value={nuevoModeloFrio}
+          onChange={(e) => setNuevoModeloFrio(e.target.value)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Serial / Código"
+            value={nuevoSerialFrio}
+            onChange={(e) => setNuevoSerialFrio(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!nuevoModeloFrio.trim() || !nuevoSerialFrio.trim()) return;
+              setEquiposFrioASIC((prev: any[]) => [
+                ...prev,
+                {
+                  id: nuevoSerialFrio.trim(),
+                  tipo: nuevoTipoFrio,
+                  modelo: nuevoModeloFrio.trim(),
+                  serial: nuevoSerialFrio.trim(),
+                  estado: "Operativo",
+                },
+              ]);
+              setNuevoModeloFrio("");
+              setNuevoSerialFrio("");
+            }}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
+          >
+            + Cargar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {/* 2. Insumos y Descartables */}
+    <div className="space-y-3 pt-2 border-t border-slate-800">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+        💉 Insumos y Material Descartable
+      </h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Jeringas 0.1 ml</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas01ml ?? 0}</span>
+        </div>
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Jeringas 0.5 ml</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas05ml ?? 0}</span>
+        </div>
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Jeringas 5 ml</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas5ml ?? 0}</span>
+        </div>
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Cajas Bioseguridad</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.cajasBioseguridad ?? 0}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* 3. Lotes de Vacunas Registrados */}
+    <div className="space-y-2 pt-2 border-t border-slate-800">
+{/* 3. Lotes de Vacunas */}
+    <div className="space-y-2 pt-2 border-t border-slate-800">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+        🧬 Lote Activo en el Sistema
+      </h3>
+      {!loteVacuna ? (
+        <p className="text-xs text-slate-400">No hay lote registrado aún.</p>
+      ) : Array.isArray(loteVacuna) ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+          {loteVacuna.map((lote: any, i: number) => (
+            <div key={lote?.id || i} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center">
+              <div>
+                <div className="font-bold text-white">{lote?.vacuna || lote?.nombre || "Lote"}</div>
+                <div className="text-slate-400 font-mono">Lote: {lote?.lote || lote?.codigo || "—"}</div>
+              </div>
+              <span className="font-mono font-bold text-cyan-300">
+                {lote?.cantidad ?? lote?.stock ?? 0} dosis
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono text-cyan-300">
+          Lote actual: {String(loteVacuna)}
+        </div>
+      )}
+    </div>
+    </div>
+  </div>
+)}
+
 {/* VISTA: COORDINADOR ASIC (CONSOLIDADO) */}
             {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "coordinacion" && (
               <div className="space-y-6">
