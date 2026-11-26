@@ -594,20 +594,53 @@ export default function Home() {
   const [cantCargar, setCantCargar] = useState<number>(50);
   const [mensajeInvExito, setMensajeInvExito] = useState("");
 
-  const [equiposFrioASIC, setEquiposFrioASIC] = useState<any[]>([
-    { id: "REF-V-01", tipo: "Refrigerador Vertical", modelo: "Dometic TCX-200", serial: "REF-V-01", estado: "Operativo (+4°C)" },
-    { id: "CAV-04", tipo: "Cava Térmica", modelo: "Coleman 50QT", serial: "CAV-04", estado: "Operativo con 4 P. Fríos" }
-  ]);
-  const [nuevoTipoFrio, setNuevoTipoFrio] = useState("Refrigerador Vertical");
-  const [nuevoModeloFrio, setNuevoModeloFrio] = useState("");
-  const [nuevoSerialFrio, setNuevoSerialFrio] = useState("");
+const [equiposFrioASIC, setEquiposFrioASIC] = useState<any[]>([]);
+const [nuevoTipoFrio, setNuevoTipoFrio] = useState("Refrigerador Vertical");
+const [nuevoModeloFrio, setNuevoModeloFrio] = useState("");
+const [nuevoSerialFrio, setNuevoSerialFrio] = useState("");
 
-  const [stockDescartables, setStockDescartables] = useState({
-    jeringas01ml: 300,
-    jeringas05ml: 1000,
-    jeringas5ml: 400,
-    cajasBioseguridad: 25
-  });
+const [stockDescartables, setStockDescartables] = useState({
+  jeringas01ml: 0,
+  jeringas05ml: 0,
+  jeringas5ml: 0,
+  cajasBioseguridad: 0,
+});
+
+// Estados nuevos para cargar Lotes e Insumos desde cero
+const [inventarioLotesASIC, setInventarioLotesASIC] = useState<any[]>([]);
+const [nuevoBiologicoLote, setNuevoBiologicoLote] = useState("BCG");
+const [nuevoCodigoLote, setNuevoCodigoLote] = useState("");
+const [nuevaCantidadLote, setNuevaCantidadLote] = useState("");
+const [nuevoVencimientoLote, setNuevoVencimientoLote] = useState("");
+const [tipoInsumoCargar, setTipoInsumoCargar] = useState<"jeringas01ml" | "jeringas05ml" | "jeringas5ml" | "cajasBioseguridad">("jeringas05ml");
+const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
+const claveInventarioASIC = `pai_inventario_${usuarioAutenticado?.estado || "general"}_${usuarioAutenticado?.municipio || "asic"}`;
+
+useEffect(() => {
+  if (!usuarioAutenticado) return;
+  try {
+    const guardado = localStorage.getItem(claveInventarioASIC);
+    if (guardado) {
+      const data = JSON.parse(guardado);
+      if (Array.isArray(data.equipos)) setEquiposFrioASIC(data.equipos);
+      if (Array.isArray(data.lotes)) setInventarioLotesASIC(data.lotes);
+      if (data.descartables) setStockDescartables(data.descartables);
+    }
+  } catch (e) {
+    console.error("Error leyendo inventario local:", e);
+  }
+}, [usuarioAutenticado, claveInventarioASIC]);
+
+const guardarInventarioLocal = (equipos: any[], lotes: any[], descartables: any) => {
+  try {
+    localStorage.setItem(
+      claveInventarioASIC,
+      JSON.stringify({ equipos, lotes, descartables })
+    );
+  } catch (e) {
+    console.error("Error guardando inventario local:", e);
+  }
+};
 
   const [fotoPacienteUrl, setFotoPacienteUrl] = useState<string>("");
   const [esquemaExistente, setEsquemaExistente] = useState<boolean>(false);
@@ -2521,7 +2554,8 @@ const construirDocumentoDependiente = (
                   ))}
                 </div>
               </div>
-            )}{/* VISTA: COORDINADOR ASIC (INVENTARIO: FRÍO, LOTES Y DESCARTABLES) */}
+            )}
+{/* VISTA: COORDINADOR ASIC (INVENTARIO: FRÍO, LOTES Y DESCARTABLES) */}
 {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "inventario" && (
   <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-5xl mx-auto space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
@@ -2535,34 +2569,56 @@ const construirDocumentoDependiente = (
       </div>
     </div>
 
-    {/* 1. Equipos de Cadena de Frío */}
+    {/* 1. EQUIPOS DE CADENA DE FRÍO */}
     <div className="space-y-3">
       <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">
         ❄️ Equipos de Cadena de Frío ({equiposFrioASIC.length})
       </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {equiposFrioASIC.map((eq: any, idx: number) => (
-          <div key={eq.id || idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1">
-            <div className="font-bold text-white">{eq.tipo} — {eq.modelo}</div>
-            <div className="text-slate-400 font-mono">ID/Serial: {eq.serial || eq.id}</div>
-            <div className="text-emerald-400">{eq.estado}</div>
-          </div>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2">
+      {equiposFrioASIC.length === 0 ? (
+        <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+          Sin equipos cargados. Registra abajo los refrigeradores, congeladores o termos reales de este ASIC.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {equiposFrioASIC.map((eq: any, idx: number) => (
+            <div key={eq.id || idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-start gap-2">
+              <div className="space-y-1">
+                <div className="font-bold text-white">{eq.tipo} — {eq.modelo}</div>
+                <div className="text-slate-400 font-mono">Serial / Código: {eq.serial || eq.id}</div>
+                <div className="text-emerald-400">{eq.estado || "Operativo"}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const nuevos = equiposFrioASIC.filter((_, i) => i !== idx);
+                  setEquiposFrioASIC(nuevos);
+                  guardarInventarioLocal(nuevos, inventarioLotesASIC, stockDescartables);
+                }}
+                className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
         <select
           value={nuevoTipoFrio}
           onChange={(e) => setNuevoTipoFrio(e.target.value)}
           className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
         >
           <option value="Refrigerador Vertical">Refrigerador Vertical</option>
+          <option value="Refrigerador Horizontal / Ice-Lined">Refrigerador Horizontal / Ice-Lined</option>
+          <option value="Congelador">Congelador</option>
           <option value="Cava Térmica">Cava Térmica</option>
-          <option value="Congelador / Ultracongelador">Congelador / Ultracongelador</option>
+          <option value="Termo Portavacunas">Termo Portavacunas</option>
         </select>
         <input
           type="text"
-          placeholder="Modelo (ej: RCW-50)"
+          placeholder="Marca / Modelo real del equipo"
           value={nuevoModeloFrio}
           onChange={(e) => setNuevoModeloFrio(e.target.value)}
           className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
@@ -2570,7 +2626,7 @@ const construirDocumentoDependiente = (
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Serial / Código"
+            placeholder="Serial / Bien Nacional"
             value={nuevoSerialFrio}
             onChange={(e) => setNuevoSerialFrio(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
@@ -2579,16 +2635,18 @@ const construirDocumentoDependiente = (
             type="button"
             onClick={() => {
               if (!nuevoModeloFrio.trim() || !nuevoSerialFrio.trim()) return;
-              setEquiposFrioASIC((prev: any[]) => [
-                ...prev,
+              const nuevos = [
+                ...equiposFrioASIC,
                 {
-                  id: nuevoSerialFrio.trim(),
+                  id: `${Date.now()}`,
                   tipo: nuevoTipoFrio,
                   modelo: nuevoModeloFrio.trim(),
                   serial: nuevoSerialFrio.trim(),
                   estado: "Operativo",
                 },
-              ]);
+              ];
+              setEquiposFrioASIC(nuevos);
+              guardarInventarioLocal(nuevos, inventarioLotesASIC, stockDescartables);
               setNuevoModeloFrio("");
               setNuevoSerialFrio("");
             }}
@@ -2600,60 +2658,191 @@ const construirDocumentoDependiente = (
       </div>
     </div>
 
-    {/* 2. Insumos y Descartables */}
-    <div className="space-y-3 pt-2 border-t border-slate-800">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-        💉 Insumos y Material Descartable
+    {/* 2. LOTES DE BIOLÓGICOS / VACUNAS */}
+    <div className="space-y-3 pt-4 border-t border-slate-800">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+        🧬 Lotes de Biológicos en Existencia ({inventarioLotesASIC.length})
       </h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Jeringas 0.1 ml</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas01ml ?? 0}</span>
+
+      {inventarioLotesASIC.length === 0 ? (
+        <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+          Sin lotes cargados. Agrega abajo cada biológico con su número de lote, dosis disponibles y fecha de vencimiento.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+          {inventarioLotesASIC.map((lote: any, idx: number) => (
+            <div key={lote.id || idx} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center gap-2">
+              <div>
+                <div className="font-bold text-white">{lote.biologico}</div>
+                <div className="text-slate-400 font-mono">
+                  Lote: {lote.codigo} {lote.vencimiento ? `• Vence: ${lote.vencimiento}` : ""}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-emerald-300">{lote.dosis} dosis</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nuevos = inventarioLotesASIC.filter((_, i) => i !== idx);
+                    setInventarioLotesASIC(nuevos);
+                    guardarInventarioLocal(equiposFrioASIC, nuevos, stockDescartables);
+                  }}
+                  className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
+                >
+                  Quitar
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Jeringas 0.5 ml</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas05ml ?? 0}</span>
-        </div>
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Jeringas 5 ml</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas5ml ?? 0}</span>
-        </div>
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Cajas Bioseguridad</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.cajasBioseguridad ?? 0}</span>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-1">
+        <select
+          value={nuevoBiologicoLote}
+          onChange={(e) => setNuevoBiologicoLote(e.target.value)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+        >
+          <option value="BCG">BCG</option>
+          <option value="Antihepatitis B">Antihepatitis B</option>
+          <option value="Pentavalente">Pentavalente</option>
+          <option value="Polio IPV">Polio IPV</option>
+          <option value="Polio Oral (bOPV)">Polio Oral (bOPV)</option>
+          <option value="Antirrotavirus">Antirrotavirus</option>
+          <option value="Antineumococo 13V">Antineumococo 13V</option>
+          <option value="SRP (Trivalente Viral)">SRP (Trivalente Viral)</option>
+          <option value="SR (Doble Viral)">SR (Doble Viral)</option>
+          <option value="Antiamarílica (Fiebre Amarilla)">Antiamarílica (Fiebre Amarilla)</option>
+          <option value="Toxoide Tetánico Diftérico (Td)">Toxoide Tetánico Diftérico (Td)</option>
+          <option value="Antiinfluenza">Antiinfluenza</option>
+          <option value="VPH">VPH</option>
+        </select>
+        <input
+          type="text"
+          placeholder="N° de Lote"
+          value={nuevoCodigoLote}
+          onChange={(e) => setNuevoCodigoLote(e.target.value)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+        />
+        <input
+          type="date"
+          value={nuevaCantidadLote && false ? "" : nuevoVencimientoLote}
+          onChange={(e) => setNuevoVencimientoLote(e.target.value)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+        />
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min="1"
+            placeholder="Dosis"
+            value={nuevaCantidadLote}
+            onChange={(e) => setNuevaCantidadLote(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const cant = Number(nuevaCantidadLote);
+              if (!nuevoCodigoLote.trim() || !cant || cant <= 0) return;
+              const nuevos = [
+                ...inventarioLotesASIC,
+                {
+                  id: `${Date.now()}`,
+                  biologico: nuevoBiologicoLote,
+                  codigo: nuevoCodigoLote.trim().toUpperCase(),
+                  vencimiento: nuevoVencimientoLote,
+                  dosis: cant,
+                },
+              ];
+              setInventarioLotesASIC(nuevos);
+              guardarInventarioLocal(equiposFrioASIC, nuevos, stockDescartables);
+              setNuevoCodigoLote("");
+              setNuevaCantidadLote("");
+              setNuevoVencimientoLote("");
+            }}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
+          >
+            + Cargar
+          </button>
         </div>
       </div>
     </div>
 
-    {/* 3. Lotes de Vacunas Registrados */}
-    <div className="space-y-2 pt-2 border-t border-slate-800">
-{/* 3. Lotes de Vacunas */}
-    <div className="space-y-2 pt-2 border-t border-slate-800">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-        🧬 Lote Activo en el Sistema
-      </h3>
-      {!loteVacuna ? (
-        <p className="text-xs text-slate-400">No hay lote registrado aún.</p>
-      ) : Array.isArray(loteVacuna) ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-          {loteVacuna.map((lote: any, i: number) => (
-            <div key={lote?.id || i} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center">
-              <div>
-                <div className="font-bold text-white">{lote?.vacuna || lote?.nombre || "Lote"}</div>
-                <div className="text-slate-400 font-mono">Lote: {lote?.lote || lote?.codigo || "—"}</div>
-              </div>
-              <span className="font-mono font-bold text-cyan-300">
-                {lote?.cantidad ?? lote?.stock ?? 0} dosis
-              </span>
-            </div>
-          ))}
+    {/* 3. INSUMOS Y MATERIAL DESCARTABLE */}
+    <div className="space-y-3 pt-4 border-t border-slate-800">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+          💉 Insumos y Material Descartable
+        </h3>
+        <button
+          type="button"
+          onClick={() => {
+            const cero = { jeringas01ml: 0, jeringas05ml: 0, jeringas5ml: 0, cajasBioseguridad: 0 };
+            setStockDescartables(cero);
+            guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, cero);
+          }}
+          className="text-[11px] text-slate-400 hover:text-rose-300 underline"
+        >
+          Reiniciar a 0
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Jeringas 0.1 ml</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas01ml}</span>
         </div>
-      ) : (
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono text-cyan-300">
-          Lote actual: {String(loteVacuna)}
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Jeringas 0.5 ml</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas05ml}</span>
         </div>
-      )}
-    </div>
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Jeringas 5 ml</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas5ml}</span>
+        </div>
+        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span className="text-slate-400 block">Cajas Bioseguridad</span>
+          <span className="text-lg font-bold font-mono text-white">{stockDescartables.cajasBioseguridad}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+        <select
+          value={tipoInsumoCargar}
+          onChange={(e) => setTipoInsumoCargar(e.target.value as any)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+        >
+          <option value="jeringas01ml">Jeringas 0.1 ml (BCG)</option>
+          <option value="jeringas05ml">Jeringas 0.5 ml (Pentavalente / SRP / Td)</option>
+          <option value="jeringas5ml">Jeringas 5 ml (Dilución)</option>
+          <option value="cajasBioseguridad">Cajas de Bioseguridad</option>
+        </select>
+        <input
+          type="number"
+          min="1"
+          placeholder="Cantidad a ingresar"
+          value={cantidadInsumoCargar}
+          onChange={(e) => setCantidadInsumoCargar(e.target.value)}
+          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const cant = Number(cantidadInsumoCargar);
+            if (!cant || cant <= 0) return;
+            const actualizado = {
+              ...stockDescartables,
+              [tipoInsumoCargar]: (stockDescartables[tipoInsumoCargar] || 0) + cant,
+            };
+            setStockDescartables(actualizado);
+            guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, actualizado);
+            setCantidadInsumoCargar("");
+          }}
+          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs"
+        >
+          + Sumar al Stock
+        </button>
+      </div>
     </div>
   </div>
 )}
