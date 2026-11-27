@@ -844,23 +844,23 @@ export default function Home() {
     }
   }, [usuarioAutenticado, claveInventarioASIC]);
 
-  useEffect(() => {
+useEffect(() => {
     const personal = localStorage.getItem("pai_lista_personal");
-    if (personal) { try { setListaPersonal(JSON.parse(personal)); } catch (e) {} }
+    if (personal) {
+      try { setListaPersonal(JSON.parse(personal)); } catch (e) {}
+    }
 
     const registros = localStorage.getItem("pai_registros_vacunacion");
-    if (registros) { try { setRegistrosRealizados(JSON.parse(registros)); } catch (e) {} }
+    if (registros) {
+      try { setRegistrosRealizados(JSON.parse(registros)); } catch (e) {}
+    }
 
     const invLotes = localStorage.getItem("pai_lotes_vacunas");
     if (invLotes) {
       try { setLoteInventarioVacunas(JSON.parse(invLotes)); } catch (e) {}
     } else {
-      const inicial = [
-        { vacuna: "Pentavalente (DPT+HB+Hib)", lote: "LOT-PEN-2026-A", vencimiento: "2027-12-31", cantidad: 150 },
-        { vacuna: "BCG (Tuberculosis)", lote: "LOT-BCG-2026-B", vencimiento: "2027-06-30", cantidad: 100 }
-      ];
-      setLoteInventarioVacunas(inicial);
-      localStorage.setItem("pai_lotes_vacunas", JSON.stringify(inicial));
+      setLoteInventarioVacunas([]);
+      localStorage.setItem("pai_lotes_vacunas", JSON.stringify([]));
     }
 
     const cargarDesdeSupabase = async () => {
@@ -873,41 +873,49 @@ export default function Home() {
           supabase.from("equipos_cadena_frio").select("*")
         ]);
 
-        if (resFunc.data && resFunc.data.length > 0) {
-          const mappedFunc = resFunc.data.map((row: any) => row.payload && Object.keys(row.payload).length > 0 ? row.payload : {
-            id: row.id,
-            codigo: row.id,
-            nombre: row.nombre,
-            cedula: row.cedula,
-            telefono: row.telefono,
-            estado: row.estado,
-            municipio: row.municipio,
-            parroquia: row.parroquia,
-            clave: row.password_hash,
-            rol: row.rol
-          });
+        if (resFunc.data) {
+          const mappedFunc = resFunc.data.map((row: any) =>
+            row.payload && Object.keys(row.payload).length > 0
+              ? row.payload
+              : {
+                  id: row.id,
+                  codigo: row.id,
+                  nombre: row.nombre,
+                  cedula: row.cedula,
+                  telefono: row.telefono,
+                  estado: row.estado,
+                  municipio: row.municipio,
+                  parroquia: row.parroquia,
+                  clave: row.password_hash,
+                  rol: row.rol
+                }
+          );
           setListaPersonal(mappedFunc);
           localStorage.setItem("pai_lista_personal", JSON.stringify(mappedFunc));
         }
 
-        if (resVac.data && resVac.data.length > 0) {
-          const mappedVac = resVac.data.map((row: any) => row.payload && Object.keys(row.payload).length > 0 ? row.payload : {
-            id: Number(row.id) || Date.now(),
-            vacunadorCedula: row.vacunador_cedula,
-            vacunadorNombre: row.vacunador_nombre,
-            pacienteNombre: row.paciente_nombre,
-            pacienteDocumento: row.paciente_documento,
-            vacuna: row.biologico,
-            dosis: row.dosis,
-            lote: row.lote,
-            fecha: row.fecha_aplicacion,
-            tieneEsavi: Boolean(row.observaciones_esavi)
-          });
+        if (resVac.data) {
+          const mappedVac = resVac.data.map((row: any) =>
+            row.payload && Object.keys(row.payload).length > 0
+              ? row.payload
+              : {
+                  id: Number(row.id) || Date.now(),
+                  vacunadorCedula: row.vacunador_cedula,
+                  vacunadorNombre: row.vacunador_nombre,
+                  pacienteNombre: row.paciente_nombre,
+                  pacienteDocumento: row.paciente_documento,
+                  vacuna: row.biologico,
+                  dosis: row.dosis,
+                  lote: row.lote,
+                  fecha: row.fecha_aplicacion,
+                  tieneEsavi: Boolean(row.observaciones_esavi)
+                }
+          );
           setRegistrosRealizados(mappedVac);
           localStorage.setItem("pai_registros_vacunacion", JSON.stringify(mappedVac));
         }
 
-        if (resInv.data && resInv.data.length > 0) {
+        if (resInv.data) {
           const lotesCloud = resInv.data
             .filter((r: any) => r.categoria === "biologico")
             .map((r: any) => ({
@@ -916,10 +924,8 @@ export default function Home() {
               vencimiento: r.fecha_vencimiento,
               cantidad: Number(r.cantidad_disponible ?? 0)
             }));
-          if (lotesCloud.length > 0) {
-            setLoteInventarioVacunas(lotesCloud);
-            localStorage.setItem("pai_lotes_vacunas", JSON.stringify(lotesCloud));
-          }
+          setLoteInventarioVacunas(lotesCloud);
+          localStorage.setItem("pai_lotes_vacunas", JSON.stringify(lotesCloud));
 
           const descRows = resInv.data.filter((r: any) => r.categoria === "jeringa");
           if (descRows.length > 0) {
@@ -936,14 +942,18 @@ export default function Home() {
           }
         }
 
-        if (resFrio.data && resFrio.data.length > 0) {
-          const mappedFrio = resFrio.data.map((r: any) => r.payload && Object.keys(r.payload).length > 0 ? r.payload : {
-            id: r.id,
-            tipo: r.tipo_equipo,
-            modelo: r.marca_modelo,
-            serial: r.codigo_equipo,
-            estado: r.estado_operativo
-          });
+        if (resFrio.data) {
+          const mappedFrio = resFrio.data.map((r: any) =>
+            r.payload && Object.keys(r.payload).length > 0
+              ? r.payload
+              : {
+                  id: r.id,
+                  tipo: r.tipo_equipo,
+                  modelo: r.marca_modelo,
+                  serial: r.codigo_equipo,
+                  estado: r.estado_operativo
+                }
+          );
           setEquiposFrioASIC(mappedFrio);
         }
 
