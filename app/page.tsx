@@ -68,7 +68,7 @@ const [nuevaCantidadDescartable, setNuevaCantidadDescartable] = useState("");
   const [editNombre, setEditNombre] = useState("");
   const [editTelefono, setEditTelefono] = useState("");
   const [editEstado, setEditEstado] = useState("Anzoátegui");
-  const [editMunicipio, setEditMunicipio] = useState("Carvajal");
+  const [editMunicipio, setEditMunicipio] = useState("Carvajal (Valle Guanape)");
   const [editParroquia, setEditParroquia] = useState("Valle Guanape");
   const [editClave, setEditClave] = useState("");
 
@@ -1252,13 +1252,25 @@ await syncDescartablesCloud(resumenDescartables);
               </span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => {
-                setEditNombre(usuarioAutenticado.nombre);
-                setEditTelefono(usuarioAutenticado.telefono);
-                setEditEstado(usuarioAutenticado.estado);
-                setEditMunicipio(usuarioAutenticado.municipio);
-                setEditParroquia(usuarioAutenticado.parroquia);
-                setEditandoPerfil(true);
+<button onClick={() => {
+  
+const munFix = usuarioAutenticado.municipio === "Carvajal"
+  ? "Carvajal (Valle Guanape)"
+  : usuarioAutenticado.municipio;
+const parqsFix = DIVISION_TERRITORIAL_VENEZUELA
+  .find(e => e.estado === usuarioAutenticado.estado)?.municipios
+  .find(m => m.nombre === munFix)?.parroquias || [];
+
+setEditNombre(usuarioAutenticado.nombre);
+setEditTelefono(usuarioAutenticado.telefono);
+setEditEstado(usuarioAutenticado.estado);
+setEditMunicipio(munFix);
+setEditParroquia(
+  parqsFix.includes(usuarioAutenticado.parroquia)
+    ? usuarioAutenticado.parroquia
+    : (parqsFix[0] || "")
+);
+setEditandoPerfil(true);
               }} className="text-xs bg-slate-800 hover:bg-cyan-950 text-cyan-300 px-3 py-2 rounded-xl border border-slate-700 transition-all">
                 Ficha y ASIC
               </button>
@@ -1347,7 +1359,7 @@ await syncDescartablesCloud(resumenDescartables);
                   <div>
                     <label className="block text-[10px] text-slate-400 uppercase mb-1">Parroquia</label>
                     <select value={editParroquia} onChange={(e) => setEditParroquia(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white">
-                      {editParqs.map(p => <option key={p} value={p}>{p}</option>)}
+                     <option value="">Seleccione parroquia...</option> {editParqs.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                 </div>
