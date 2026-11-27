@@ -523,6 +523,8 @@ const PERFILES_VACUNACION: Record<string, string[]> = {
 
 const TIPOS_ACTIVIDAD_PAI = ["Intramural", "Extramural", "Casa a Casa", "Luciérnagas y Cocuyos", "Fiesta Nacional de Inmunización"];
 
+const CLAVE_COLA_OFFLINE_PAI = "pai_asic_cola_offline_v1";
+
 export default function Home() {
   const [modo, setModo] = useState<"login" | "registro">("login");
   const [cedula, setCedula] = useState("");
@@ -540,50 +542,6 @@ export default function Home() {
   const [loginClave, setLoginClave] = useState("");
   const [errorMensaje, setErrorMensaje] = useState("");
   const [usuarioAutenticado, setUsuarioAutenticado] = useState<any>(null);
-
-  const claveInventarioASIC = `pai_inventario_${usuarioAutenticado?.estado || "general"}_${usuarioAutenticado?.municipio || "asic"}`;
-
-  useEffect(() => {
-    if (!usuarioAutenticado) return;
-    try {
-      const guardado = localStorage.getItem(claveInventarioASIC);
-      if (guardado) {
-        const data = JSON.parse(guardado);
-        setEquiposFrioASIC(Array.isArray(data.equipos) ? data.equipos : []);
-        setInventarioLotesASIC(Array.isArray(data.lotes) ? data.lotes : []);
-        if (data.descartables) {
-          setStockDescartables({
-            jeringas01ml: Number(data.descartables.jeringas01ml ?? 0),
-            jeringas05ml: Number(data.descartables.jeringas05ml ?? 0),
-            jeringas5ml: Number(data.descartables.jeringas5ml ?? 0),
-            cajasBioseguridad: Number(data.descartables.cajasBioseguridad ?? 0),
-          });
-        }
-      } else {
-        setEquiposFrioASIC([]);
-        setInventarioLotesASIC([]);
-        setStockDescartables({
-          jeringas01ml: 0,
-          jeringas05ml: 0,
-          jeringas5ml: 0,
-          cajasBioseguridad: 0,
-        });
-      }
-    } catch (e) {
-      console.error("Error leyendo inventario local:", e);
-    }
-  }, [usuarioAutenticado, claveInventarioASIC]);
-
-  const guardarInventarioLocal = (equipos: any[], lotes: any[], descartables: any) => {
-    try {
-      localStorage.setItem(
-        claveInventarioASIC,
-        JSON.stringify({ equipos, lotes, descartables })
-      );
-    } catch (e) {
-      console.error("Error guardando inventario local:", e);
-    }
-  };
   const [pestañaActiva, setPestañaActiva] = useState<string>("registro");
 
   // Edición de Perfil de Funcionario Completa
@@ -631,44 +589,41 @@ export default function Home() {
   const [severidadEsavi, setSeveridadEsavi] = useState<"Leve" | "Moderado" | "Grave">("Leve");
 
   const [loteInventarioVacunas, setLoteInventarioVacunas] = useState<any[]>([]);
-  const [vacunaCargarInv, setVacunaCargarInv] = useState(CATALOGO_BIOLOGICOS_PAI[0].nombre);
-  const [loteCargar, setLoteCargar] = useState("");
-  const [vencCargar, setVencCargar] = useState("");
-  const [cantCargar, setCantCargar] = useState<number>(50);
-  const [mensajeInvExito, setMensajeInvExito] = useState("");
 
-const [equiposFrioASIC, setEquiposFrioASIC] = useState<any[]>([]);
-const [nuevoTipoFrio, setNuevoTipoFrio] = useState("Refrigerador Vertical");
-const [nuevoModeloFrio, setNuevoModeloFrio] = useState("");
-const [nuevoSerialFrio, setNuevoSerialFrio] = useState("");
+  // Inventario ASIC: Frío, Lotes y Descartables
+  const [equiposFrioASIC, setEquiposFrioASIC] = useState<any[]>([]);
+  const [nuevoTipoFrio, setNuevoTipoFrio] = useState("Refrigerador Vertical");
+  const [nuevoModeloFrio, setNuevoModeloFrio] = useState("");
+  const [nuevoSerialFrio, setNuevoSerialFrio] = useState("");
 
-const [stockDescartables, setStockDescartables] = useState({
-  jeringas01ml: 0,
-  jeringas05ml: 0,
-  jeringas5ml: 0,
-  cajasBioseguridad: 0,
-});
+  const [stockDescartables, setStockDescartables] = useState({
+    jeringas01ml: 0,
+    jeringas05ml: 0,
+    jeringas5ml: 0,
+    cajasBioseguridad: 0,
+  });
 
-// Estados nuevos para cargar Lotes e Insumos desde cero
-const [inventarioLotesASIC, setInventarioLotesASIC] = useState<any[]>([]);
-const [nuevoBiologicoLote, setNuevoBiologicoLote] = useState("BCG");
-const [nuevoCodigoLote, setNuevoCodigoLote] = useState("");
-const [nuevaCantidadLote, setNuevaCantidadLote] = useState("");
-const [nuevoVencimientoLote, setNuevoVencimientoLote] = useState("");
-const [tipoInsumoCargar, setTipoInsumoCargar] = useState<"jeringas01ml" | "jeringas05ml" | "jeringas5ml" | "cajasBioseguridad">("jeringas05ml");
-const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
+  const [inventarioLotesASIC, setInventarioLotesASIC] = useState<any[]>([]);
+  const [nuevoBiologicoLote, setNuevoBiologicoLote] = useState("BCG");
+  const [nuevoCodigoLote, setNuevoCodigoLote] = useState("");
+  const [nuevaCantidadLote, setNuevaCantidadLote] = useState("");
+  const [nuevoVencimientoLote, setNuevoVencimientoLote] = useState("");
+  const [tipoInsumoCargar, setTipoInsumoCargar] = useState<"jeringas01ml" | "jeringas05ml" | "jeringas5ml" | "cajasBioseguridad">("jeringas05ml");
+  const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
 
   const [fotoPacienteUrl, setFotoPacienteUrl] = useState<string>("");
   const [esquemaExistente, setEsquemaExistente] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estado y guardado del formulario estructurado del Libro Físico Histórico
+  // Libro Físico Histórico
+  const [esInclusion, setEsInclusion] = useState<boolean>(false);
+  const [paisInclusion, setPaisInclusion] = useState<string>("");
   const [libroForm, setLibroForm] = useState({
     nombres: "",
     apellidos: "",
     tipoCedula: "propia",
     cedula: "",
-    sufijoFamiliar: "-01",
+    sufijoFamiliar: "H1",
     fechaNacimiento: "",
     biologico: "Pentavalente (DPT+HB+Hib)",
     numeroDosis: "1",
@@ -686,6 +641,34 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
 
   // Tarjeta de Vacunación para imprimir / extraer en PDF
   const [tarjetaPacienteDoc, setTarjetaPacienteDoc] = useState<string | null>(null);
+
+  // Filtros avanzados
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [filtroBiologico, setFiltroBiologico] = useState("TODOS");
+  const [filtroSexo, setFiltroSexo] = useState<"TODOS" | "Masculino" | "Femenino">("TODOS");
+  const [filtroGrupoEtario, setFiltroGrupoEtario] = useState("TODOS");
+  const [filtroParroquia, setFiltroParroquia] = useState("TODAS");
+  const [filtroBusqueda, setFiltroBusqueda] = useState("");
+
+  // Cola offline
+  const [estaOnline, setEstaOnline] = useState<boolean>(
+    typeof window !== "undefined" ? window.navigator.onLine : true
+  );
+  const [pendientesOffline, setPendientesOffline] = useState<any[]>([]);
+  const [sincronizandoOffline, setSincronizandoOffline] = useState<boolean>(false);
+
+  // Jerarquía de roles: Regional hereda ASIC + Vacunador; ASIC hereda Vacunador; no inversa.
+  const rolActual = usuarioAutenticado?.rol || "";
+  const esCoordinadorRegional = rolActual === "Coordinador Regional PAI";
+  const esCoordinadorASIC = rolActual === "Coordinador Municipal / ASIC";
+  const esVacunador = rolActual === "Vacunador de Campo";
+
+  const puedeVerOperacionVacunador = esVacunador || esCoordinadorASIC || esCoordinadorRegional;
+  const puedeVerGestionASIC = esCoordinadorASIC || esCoordinadorRegional;
+  const puedeVerGestionRegional = esCoordinadorRegional;
+
+  const claveInventarioASIC = `pai_inventario_${usuarioAutenticado?.estado || "general"}_${usuarioAutenticado?.municipio || "asic"}`;
 
   // Helpers de sincronización con Supabase
   const syncFuncionarioCloud = async (funcObj: any) => {
@@ -754,16 +737,19 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
 
   const syncLoteCloud = async (loteObj: any) => {
     try {
-      const idLote = `LOTE-${loteObj.vacuna}-${loteObj.lote}`.replace(/\s+/g, "_");
+      const nombreBio = loteObj.vacuna || loteObj.biologico || "BIOLOGICO";
+      const codLote = loteObj.lote || loteObj.codigo || "SIN-LOTE";
+      const cantDisp = Number(loteObj.cantidad ?? loteObj.dosis ?? 0);
+      const idLote = `LOTE-${nombreBio}-${codLote}`.replace(/\s+/g, "_");
       await supabase.from("inventarios_biologicos_asic").upsert({
         id: idLote,
         categoria: "biologico",
-        nombre: loteObj.vacuna,
-        lote: loteObj.lote,
+        nombre: nombreBio,
+        lote: codLote,
         fecha_vencimiento: loteObj.vencimiento || "",
-        cantidad_disponible: Number(loteObj.cantidad || 0),
-        estado_lote: Number(loteObj.cantidad || 0) > 0 ? "activo" : "agotado",
-        payload: loteObj,
+        cantidad_disponible: cantDisp,
+        estado_lote: cantDisp > 0 ? "activo" : "agotado",
+        payload: { ...loteObj, vacuna: nombreBio, lote: codLote, cantidad: cantDisp },
         updated_at: new Date().toISOString()
       }, { onConflict: "id" });
     } catch (e) {
@@ -815,6 +801,48 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
       console.error("Error sync equipo frio:", e);
     }
   };
+
+  const guardarInventarioLocal = (equipos: any[], lotes: any[], descartables: any) => {
+    try {
+      localStorage.setItem(
+        claveInventarioASIC,
+        JSON.stringify({ equipos, lotes, descartables })
+      );
+    } catch (e) {
+      console.error("Error guardando inventario local:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!usuarioAutenticado) return;
+    try {
+      const guardado = localStorage.getItem(claveInventarioASIC);
+      if (guardado) {
+        const data = JSON.parse(guardado);
+        setEquiposFrioASIC(Array.isArray(data.equipos) ? data.equipos : []);
+        setInventarioLotesASIC(Array.isArray(data.lotes) ? data.lotes : []);
+        if (data.descartables) {
+          setStockDescartables({
+            jeringas01ml: Number(data.descartables.jeringas01ml ?? 0),
+            jeringas05ml: Number(data.descartables.jeringas05ml ?? 0),
+            jeringas5ml: Number(data.descartables.jeringas5ml ?? 0),
+            cajasBioseguridad: Number(data.descartables.cajasBioseguridad ?? 0),
+          });
+        }
+      } else {
+        setEquiposFrioASIC([]);
+        setInventarioLotesASIC([]);
+        setStockDescartables({
+          jeringas01ml: 0,
+          jeringas05ml: 0,
+          jeringas5ml: 0,
+          cajasBioseguridad: 0,
+        });
+      }
+    } catch (e) {
+      console.error("Error leyendo inventario local:", e);
+    }
+  }, [usuarioAutenticado, claveInventarioASIC]);
 
   useEffect(() => {
     const personal = localStorage.getItem("pai_lista_personal");
@@ -932,7 +960,7 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
   useEffect(() => {
     if (esNuevoPaciente && representanteCedula && fechaNacimiento) {
       const fechaNum = fechaNacimiento.replaceAll("-", "");
-      const correlativoDoc = `REP-${representanteCedula}-H${numeroHijoCorrelativo}-${fechaNum.slice(-4)}`;
+      const correlativoDoc = `REP-${representanteCedula.trim().toUpperCase()}-H${numeroHijoCorrelativo}-${fechaNum.slice(-4)}`;
       setBusquedaDoc(correlativoDoc);
     }
   }, [esNuevoPaciente, representanteCedula, numeroHijoCorrelativo, fechaNacimiento]);
@@ -947,7 +975,9 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
     if (previo) {
       setEsquemaExistente(true);
       setPacienteNombre(previo.pacienteNombre);
-      setPacienteSexo(previo.pacienteSexo);
+      if (previo.pacienteSexo === "Masculino" || previo.pacienteSexo === "Femenino") {
+        setPacienteSexo(previo.pacienteSexo);
+      }
       if (previo.fechaNacimiento) setFechaNacimiento(previo.fechaNacimiento);
       if (previo.fotoPacienteUrl) setFotoPacienteUrl(previo.fotoPacienteUrl);
       if (previo.representante) {
@@ -1017,7 +1047,32 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
   const handleRegistroTrabajador = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMensaje("");
-    if (!cedula.trim() || !nombre.trim() || !claveRegistro.trim() || !telefono.trim()) return;
+    const cedulaLimpia = cedula.trim().toUpperCase();
+    if (!cedulaLimpia || !nombre.trim() || !claveRegistro.trim() || !telefono.trim()) return;
+
+    // Validar unicidad de cédula en lista local y en Supabase
+    const existeLocal = listaPersonal.some(
+      (p) => String(p.cedula || "").trim().toUpperCase() === cedulaLimpia
+    );
+    if (existeLocal) {
+      setErrorMensaje("⚠️ Ya existe un funcionario registrado con esa cédula. Inicia sesión con tu cuenta.");
+      return;
+    }
+
+    try {
+      const { data: existenteCloud } = await supabase
+        .from("pai_funcionarios")
+        .select("cedula")
+        .ilike("cedula", cedulaLimpia)
+        .limit(1);
+
+      if (existenteCloud && existenteCloud.length > 0) {
+        setErrorMensaje("⚠️ Esa cédula ya está registrada en el sistema PAI. Inicia sesión con tu cédula y clave.");
+        return;
+      }
+    } catch {
+      // Si no hay conexión, se respeta la validación local previa
+    }
 
     const correlativo = Math.floor(Math.random() * 89) + 10;
     const prefijo = municipioUser.substring(0, 3).toUpperCase();
@@ -1033,9 +1088,16 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
     }
 
     const nuevo = {
-      id: Date.now(), codigo, nombre: nombre.trim(), cedula: cedula.trim(),
-      telefono: telefono.trim(), estado: estadoUser, municipio: municipioUser,
-      parroquia: parroquiaUser, clave: claveRegistro.trim(), rol: rolTexto
+      id: Date.now(),
+      codigo,
+      nombre: nombre.trim(),
+      cedula: cedulaLimpia,
+      telefono: telefono.trim(),
+      estado: estadoUser,
+      municipio: municipioUser,
+      parroquia: parroquiaUser,
+      clave: claveRegistro.trim(),
+      rol: rolTexto
     };
 
     const actualizada = [nuevo, ...listaPersonal];
@@ -1044,9 +1106,14 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
     await syncFuncionarioCloud(nuevo);
 
     setUsuarioAutenticado({
-      cedula: cedula.trim(), nombre: nombre.trim(), telefono: telefono.trim(),
-      estado: estadoUser, municipio: municipioUser, parroquia: parroquiaUser,
-      rol: rolTexto, codigoOficial: codigo
+      cedula: cedulaLimpia,
+      nombre: nombre.trim(),
+      telefono: telefono.trim(),
+      estado: estadoUser,
+      municipio: municipioUser,
+      parroquia: parroquiaUser,
+      rol: rolTexto,
+      codigoOficial: codigo
     });
 
     if (rol === "REGIONAL") setPestañaActiva("regional");
@@ -1056,15 +1123,24 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const f = listaPersonal.find(p => p.cedula.toLowerCase() === loginCedula.trim().toLowerCase() && p.clave === loginClave.trim());
+    setErrorMensaje("");
+    const cedulaBuscada = loginCedula.trim().toUpperCase();
+    const f = listaPersonal.find(
+      (p) => String(p.cedula || "").trim().toUpperCase() === cedulaBuscada && p.clave === loginClave.trim()
+    );
     if (!f) {
       setErrorMensaje("⚠️ Cédula o contraseña incorrectas.");
       return;
     }
     setUsuarioAutenticado({
-      cedula: f.cedula, nombre: f.nombre, telefono: f.telefono,
-      estado: f.estado, municipio: f.municipio, parroquia: f.parroquia,
-      rol: f.rol, codigoOficial: f.codigo
+      cedula: f.cedula,
+      nombre: f.nombre,
+      telefono: f.telefono,
+      estado: f.estado,
+      municipio: f.municipio,
+      parroquia: f.parroquia,
+      rol: f.rol,
+      codigoOficial: f.codigo
     });
 
     if (f.rol === "Coordinador Regional PAI") setPestañaActiva("regional");
@@ -1090,39 +1166,6 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
     await syncFuncionarioCloud(actualizado);
     setEditandoPerfil(false);
     alert("✓ Ficha y adscripción de ASIC actualizadas correctamente.");
-  };
-
-  const handleCargarLoteInventario = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loteCargar || !vencCargar || cantCargar <= 0) return;
-
-    const nuevoLote = { vacuna: vacunaCargarInv, lote: loteCargar.trim().toUpperCase(), vencimiento: vencCargar, cantidad: Number(cantCargar) };
-    const actualizado = [nuevoLote, ...loteInventarioVacunas];
-    setLoteInventarioVacunas(actualizado);
-    localStorage.setItem("pai_lotes_vacunas", JSON.stringify(actualizado));
-    await syncLoteCloud(nuevoLote);
-
-    setMensajeInvExito(`✓ Lote ${loteCargar} de ${vacunaCargarInv} cargado al inventario.`);
-    setLoteCargar("");
-    setVencCargar("");
-    setTimeout(() => setMensajeInvExito(""), 4000);
-  };
-
-  const handleAgregarEquipoFrio = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevoModeloFrio || !nuevoSerialFrio) return;
-    const nuevo = {
-      id: `EQ-${nuevoSerialFrio.trim()}-${Date.now()}`,
-      tipo: nuevoTipoFrio,
-      modelo: nuevoModeloFrio.trim(),
-      serial: nuevoSerialFrio.trim(),
-      ubicacion: `ASIC ${usuarioAutenticado?.municipio || ""}`,
-      estado: "Operativo"
-    };
-    setEquiposFrioASIC([...equiposFrioASIC, nuevo]);
-    await syncEquipoFrioCloud(nuevo);
-    setNuevoModeloFrio("");
-    setNuevoSerialFrio("");
   };
 
   const handleGuardarVacunacion = async (e: React.FormEvent) => {
@@ -1154,8 +1197,9 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
       desc.jeringas05ml = Math.max(0, desc.jeringas05ml - 1);
     }
     setStockDescartables(desc);
+    guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, desc);
 
-    const docFinal = busquedaDoc.trim() || "SIN-CEDULA";
+    const docFinal = busquedaDoc.trim().toUpperCase() || "SIN-CEDULA";
 
     const nuevoReg = {
       id: Date.now(),
@@ -1181,6 +1225,7 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
       tieneEsavi,
       esaviDetalle: tieneEsavi ? { sintomas: sintomasEsavi, severidad: severidadEsavi } : null,
       fotoPacienteUrl: fotoPacienteUrl || "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=150",
+      esHistorico: false,
       fecha: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -1203,6 +1248,7 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
     setFotoPacienteUrl("");
     setTimeout(() => setMensajeExito(false), 3000);
   };
+
   const escaparHTML = (texto: any) =>
     String(texto ?? "")
       .replace(/&/g, "&amp;")
@@ -1229,6 +1275,8 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
         const paisInc = r.paisInclusion ? ` (${r.paisInclusion})` : "";
         const inclusionBadge = esInc
           ? `<span style="background:#e0e7ff;color:#3730a3;padding:2px 6px;border-radius:4px;font-weight:700;font-size:10px;">INCLUSIÓN${escaparHTML(paisInc)}</span>`
+          : r.esHistorico
+          ? `<span style="background:#f3e8ff;color:#6b21a8;padding:2px 6px;border-radius:4px;font-weight:700;font-size:10px;">Libro Físico</span>`
           : `<span style="color:#64748b;font-size:10px;">Regular</span>`;
 
         return `
@@ -1253,16 +1301,17 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
         <meta charset="UTF-8" />
         <title>${escaparHTML(tituloReporte)}</title>
         <style>
-          body { font-family: Arial, Helvetica, sans-serif; margin: 24px; color: #0f172a; }
-          .header { border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+          @page { size: letter landscape; margin: 10mm; }
+          body { font-family: Arial, Helvetica, sans-serif; margin: 16px; color: #0f172a; }
+          .header { border-bottom: 2px solid #1e293b; padding-bottom: 10px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: flex-end; }
           h1 { font-size: 18px; margin: 0 0 4px 0; }
           .meta { font-size: 11px; color: #475569; }
           table { width: 100%; border-collapse: collapse; font-size: 11px; }
           th { background: #1e293b; color: #ffffff; text-align: left; padding: 7px 8px; }
           td { border-bottom: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: middle; }
           tr:nth-child(even) { background: #f8fafc; }
-          .footer { margin-top: 18px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
-          @media print { .no-print { display: none; } body { margin: 10px; } }
+          .footer { margin-top: 14px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+          @media print { .no-print { display: none; } body { margin: 0; } }
         </style>
       </head>
       <body>
@@ -1306,86 +1355,7 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
     ventana.document.close();
   };
 
-  const exportarTarjetaPDF = (registro: any) => {
-    const ventana = window.open("", "_blank", "width=720,height=540");
-    if (!ventana) {
-      alert("Permite las ventanas emergentes en tu navegador para generar la tarjeta en PDF.");
-      return;
-    }
-
-    const docMostrado = registro.pacienteDocumento || registro.documento || "S/D";
-    const nombreMostrado = registro.pacienteNombre || registro.nombre || "Sin nombre";
-    const biologicoMostrado = registro.vacuna || registro.biologico || "N/A";
-    const dosisMostrada = registro.dosis || registro.numeroDosis || "N/A";
-    const loteMostrado = registro.lote || "N/A";
-    const fechaMostrada = registro.fechaAplicacion || registro.fecha || "N/A";
-    const establecimiento =
-      registro.direccion?.parroquia ||
-      registro.direccion?.municipio ||
-      "ASIC Valle Guanape";
-
-    const bloqueInclusion = registro.esInclusion
-      ? `<div style="margin-top:12px;padding:10px 12px;background:#eef2ff;border-left:4px solid #4f46e5;border-radius:6px;font-size:12px;color:#1e1b4b;">
-           <strong>REGISTRO POR INCLUSIÓN</strong> — Antecedente / tarjeta extranjera.
-           ${registro.paisInclusion ? `<br/><strong>País de dosis previas:</strong> ${escaparHTML(registro.paisInclusion)}` : ""}
-         </div>`
-      : "";
-
-    ventana.document.write(`
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8" />
-        <title>Tarjeta PAI - ${escaparHTML(nombreMostrado)}</title>
-        <style>
-          body { font-family: Arial, Helvetica, sans-serif; background: #f1f5f9; padding: 24px; color: #0f172a; }
-          .card { max-width: 620px; margin: 0 auto; background: #ffffff; border: 2px solid #1e293b; border-radius: 12px; padding: 20px 24px; }
-          .top { display: flex; justify-content: space-between; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; margin-bottom: 14px; }
-          .title { font-size: 16px; font-weight: 700; margin: 0; }
-          .sub { font-size: 11px; color: #475569; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; font-size: 12px; }
-          .label { font-size: 10px; text-transform: uppercase; color: #64748b; display: block; }
-          .val { font-weight: 600; font-size: 13px; }
-          .mono { font-family: monospace; }
-          .foot { margin-top: 16px; padding-top: 10px; border-top: 1px dashed #cbd5e1; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
-          @media print { body { background: #ffffff; padding: 0; } .no-print { display: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="top">
-            <div>
-              <p class="title">Constancia / Tarjeta de Vacunación PAI</p>
-              <div class="sub">Programa Ampliado de Inmunización — ${escaparHTML(establecimiento)}</div>
-            </div>
-            <div class="sub" style="text-align:right;">
-              <div><strong>Fecha emisión:</strong></div>
-              <div>${escaparHTML(new Date().toLocaleDateString("es-VE"))}</div>
-            </div>
-          </div>
-          <div class="grid">
-            <div><span class="label">Paciente</span><span class="val">${escaparHTML(nombreMostrado)}</span></div>
-            <div><span class="label">Documento / Dependiente</span><span class="val mono">${escaparHTML(docMostrado)}</span></div>
-            <div><span class="label">Biológico / Vacuna</span><span class="val">${escaparHTML(biologicoMostrado)}</span></div>
-            <div><span class="label">Dosis</span><span class="val">${escaparHTML(dosisMostrada)}</span></div>
-            <div><span class="label">Lote</span><span class="val mono">${escaparHTML(loteMostrado)}</span></div>
-            <div><span class="label">Fecha de aplicación</span><span class="val">${escaparHTML(fechaMostrada)}</span></div>
-          </div>
-          ${bloqueInclusion}
-          <div class="foot">
-            <span>Sistema PAI ASIC — Registro válido para control y transcripción</span>
-            <span class="no-print"><button onclick="window.print()">Imprimir / Guardar PDF</button></span>
-          </div>
-        </div>
-        <script>
-          window.onload = function() { setTimeout(function() { window.print(); }, 250); };
-        </script>
-      </body>
-      </html>
-    `);
-    ventana.document.close();
-  };
-
+  // Transcripción de Libro Físico Histórico (no altera stock en vivo ni se cuenta como dosis activa)
   const handleGuardarLibro = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensajeLibro(null);
@@ -1408,20 +1378,20 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
       const cedulaLimpia = libroForm.cedula.trim().toUpperCase();
       const docFinal =
         libroForm.tipoCedula === "representante"
-          ? `REP-${cedulaLimpia}${libroForm.sufijoFamiliar || "-01"}`
+          ? `REP-${cedulaLimpia}-${libroForm.sufijoFamiliar || "H1"}`
           : cedulaLimpia;
 
       const nuevoReg = {
         id: Date.now(),
-        vacunadorCedula: usuarioAutenticado?.cedula || "",
-        vacunadorNombre: usuarioAutenticado?.nombre || "",
+        vacunadorCedula: "",
+        vacunadorNombre: `Transcripción (${usuarioAutenticado?.nombre || "Sistema"})`,
         municipioJurisdiccion: usuarioAutenticado?.municipio || municipioUser,
         parroquiaJurisdiccion: usuarioAutenticado?.parroquia || parroquiaUser,
         estadoJurisdiccion: usuarioAutenticado?.estado || estadoUser,
         esNuevoPaciente: libroForm.tipoCedula === "representante",
         representante:
           libroForm.tipoCedula === "representante"
-            ? { cedula: cedulaLimpia, nombre: "", hijo: libroForm.sufijoFamiliar || "-01" }
+            ? { cedula: cedulaLimpia, nombre: "", hijo: libroForm.sufijoFamiliar || "H1" }
             : null,
         pacienteNombre: `${libroForm.nombres.trim()} ${libroForm.apellidos.trim()}`,
         pacienteDocumento: docFinal,
@@ -1448,7 +1418,7 @@ const [cantidadInsumoCargar, setCantidadInsumoCargar] = useState("");
         fecha: libroForm.fechaColocacion,
       };
 
-const nuevosRegs = [nuevoReg, ...registrosRealizados];
+      const nuevosRegs = [nuevoReg, ...registrosRealizados];
       setRegistrosRealizados(nuevosRegs);
       localStorage.setItem("pai_registros_vacunacion", JSON.stringify(nuevosRegs));
 
@@ -1468,8 +1438,8 @@ const nuevosRegs = [nuevoReg, ...registrosRealizados];
       setMensajeLibro({
         tipo: "ok",
         texto: guardadoOffline
-          ? `Guardado sin conexión (pendiente por subir): ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`
-          : `Guardado: ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`,
+          ? `Guardado histórico sin conexión (pendiente por subir): ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`
+          : `Guardado histórico: ${libroForm.nombres.trim()} ${libroForm.apellidos.trim()} — ${libroForm.biologico} (Dosis ${libroForm.numeroDosis}).`,
       });
 
       setLibroForm((prev) => ({
@@ -1480,17 +1450,27 @@ const nuevosRegs = [nuevoReg, ...registrosRealizados];
     } catch (err: any) {
       setMensajeLibro({
         tipo: "error",
-        texto: err?.message || "Error al guardar en Supabase.",
+        texto: err?.message || "Error al guardar registro histórico en Supabase.",
       });
     } finally {
       setGuardandoLibro(false);
     }
   };
 
-  const misRegistros = usuarioAutenticado ? registrosRealizados.filter(r => r.vacunadorCedula === usuarioAutenticado.cedula) : [];
-  const registrosJurisdiccionASIC = usuarioAutenticado ? registrosRealizados.filter(r => r.municipioJurisdiccion === usuarioAutenticado.municipio) : [];
-  const equipoVacunadoresASIC = usuarioAutenticado ? listaPersonal.filter(p => p.municipio === usuarioAutenticado.municipio && p.rol === "Vacunador de Campo") : [];
-  const registrosEstadales = usuarioAutenticado ? registrosRealizados.filter(r => r.estadoJurisdiccion === usuarioAutenticado.estado) : [];
+  // Registros clínicos activos (excluye transcripciones históricas de libro físico)
+  const registrosClinicosActivos = registrosRealizados.filter((r) => !r.esHistorico);
+  const misRegistros = usuarioAutenticado
+    ? registrosClinicosActivos.filter((r) => r.vacunadorCedula === usuarioAutenticado.cedula)
+    : [];
+  const registrosJurisdiccionASIC = usuarioAutenticado
+    ? registrosClinicosActivos.filter((r) => r.municipioJurisdiccion === usuarioAutenticado.municipio)
+    : [];
+  const equipoVacunadoresASIC = usuarioAutenticado
+    ? listaPersonal.filter((p) => p.municipio === usuarioAutenticado.municipio && p.rol === "Vacunador de Campo")
+    : [];
+  const registrosEstadales = usuarioAutenticado
+    ? registrosClinicosActivos.filter((r) => r.estadoJurisdiccion === usuarioAutenticado.estado)
+    : [];
 
   const objEstadoUser = DIVISION_TERRITORIAL_VENEZUELA.find(e => e.estado === estadoUser);
   const municipiosDisponiblesUser = objEstadoUser ? objEstadoUser.municipios : [];
@@ -1507,18 +1487,11 @@ const nuevosRegs = [nuevoReg, ...registrosRealizados];
   const objEditMun = editMuns.find(m => m.nombre === editMunicipio);
   const editParqs = objEditMun ? objEditMun.parroquias : [];
 
+  // Agrupa todas las dosis del paciente por documento para la tarjeta
   const historialTarjeta = tarjetaPacienteDoc
     ? registrosRealizados.filter(r => r.pacienteDocumento === tarjetaPacienteDoc)
     : [];
   const cabeceraTarjeta = historialTarjeta[0] || null;
-  // Punto 2: Filtros avanzados (fecha, biológico, demografía) y exportación a Excel
-  const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
-  const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
-  const [filtroBiologico, setFiltroBiologico] = useState("TODOS");
-  const [filtroSexo, setFiltroSexo] = useState<"TODOS" | "Masculino" | "Femenino">("TODOS");
-  const [filtroGrupoEtario, setFiltroGrupoEtario] = useState("TODOS");
-  const [filtroParroquia, setFiltroParroquia] = useState("TODAS");
-  const [filtroBusqueda, setFiltroBusqueda] = useState("");
 
   const normalizarFechaISO = (valorFecha: any): string => {
     if (!valorFecha) return "";
@@ -1566,15 +1539,6 @@ const nuevosRegs = [nuevoReg, ...registrosRealizados];
 
   const registrosASICFiltrados = aplicarFiltrosPAI(registrosJurisdiccionASIC);
   const registrosRegionalFiltrados = aplicarFiltrosPAI(registrosEstadales);
-  const [esInclusion, setEsInclusion] = useState<boolean>(false);
-const [paisInclusion, setPaisInclusion] = useState<string>("");
-const [numeroHijoDependiente, setNumeroHijoDependiente] = useState<string>("H1");
-const CLAVE_COLA_OFFLINE_PAI = "pai_asic_cola_offline_v1";
-  const [estaOnline, setEstaOnline] = useState<boolean>(
-    typeof window !== "undefined" ? window.navigator.onLine : true
-  );
-  const [pendientesOffline, setPendientesOffline] = useState<any[]>([]);
-  const [sincronizandoOffline, setSincronizandoOffline] = useState<boolean>(false);
 
   const leerColaOffline = (): any[] => {
     if (typeof window === "undefined") return [];
@@ -1617,13 +1581,11 @@ const CLAVE_COLA_OFFLINE_PAI = "pai_asic_cola_offline_v1";
     const restantes: any[] = [];
 
     for (const item of cola) {
-for (const item of cola) {
       try {
         await syncRegistroVacunaCloud(item.payload);
       } catch {
         restantes.push(item);
       }
-    }
     }
 
     guardarColaOffline(restantes);
@@ -1653,17 +1615,6 @@ for (const item of cola) {
       window.removeEventListener("offline", manejarOffline);
     };
   }, []);
-
-const construirDocumentoDependiente = (
-  nacionalidadRepresentante: "V" | "E",
-  cedulaRepresentante: string,
-  numeroHijo: string
-) => {
-  const cedulaLimpia = (cedulaRepresentante || "").replace(/\D/g, "");
-  const sufijo = (numeroHijo || "H1").toUpperCase().trim();
-  if (!cedulaLimpia) return "";
-  return `${nacionalidadRepresentante}-${cedulaLimpia}-${sufijo}`;
-};
 
   const exportarRegistrosExcel = (filas: any[], nombreArchivo: string) => {
     const encabezados = [
@@ -1718,8 +1669,8 @@ const construirDocumentoDependiente = (
           r.tieneEsavi
             ? `${r.esaviDetalle?.severidad || ""}: ${r.esaviDetalle?.sintomas || ""}`
             : "",
-            r.esInclusion ? "Sí" : "No",
-        r.esInclusion ? (r.paisInclusion || "No especificado") : "—",
+          r.esInclusion ? "Sí" : "No",
+          r.esInclusion ? (r.paisInclusion || "No especificado") : "—",
         ]
           .map(escaparCSV)
           .join(";")
@@ -1757,11 +1708,11 @@ const construirDocumentoDependiente = (
           </h1>
         </div>
         {usuarioAutenticado && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="text-right">
               <span className="text-xs font-bold text-white block">{usuarioAutenticado.nombre}</span>
               <span className="text-[10px] text-cyan-400 font-mono block">
-                ASIC / Municipio: {usuarioAutenticado.municipio} ({usuarioAutenticado.estado})
+                {usuarioAutenticado.rol} &bull; {usuarioAutenticado.municipio} ({usuarioAutenticado.estado})
               </span>
             </div>
             <div className="flex gap-2">
@@ -1780,34 +1731,34 @@ const construirDocumentoDependiente = (
               </button>
             </div>
             <div className="flex items-center gap-2 text-xs">
-  <span
-    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border ${
-      estaOnline
-        ? "bg-emerald-950/70 text-emerald-300 border-emerald-700/60"
-        : "bg-amber-950/80 text-amber-300 border-amber-700/60"
-    }`}
-  >
-    <span
-      className={`h-2 w-2 rounded-full ${
-        estaOnline ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
-      }`}
-    />
-    {estaOnline ? "En línea" : "Sin conexión"}
-  </span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold border ${
+                  estaOnline
+                    ? "bg-emerald-950/70 text-emerald-300 border-emerald-700/60"
+                    : "bg-amber-950/80 text-amber-300 border-amber-700/60"
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    estaOnline ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
+                  }`}
+                />
+                {estaOnline ? "En línea" : "Sin conexión"}
+              </span>
 
-  {pendientesOffline.length > 0 && (
-    <button
-      type="button"
-      disabled={!estaOnline || sincronizandoOffline}
-      onClick={sincronizarColaOffline}
-      className="px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold transition-all"
-    >
-      {sincronizandoOffline
-        ? "Sincronizando..."
-        : `⬆️ Sincronizar (${pendientesOffline.length})`}
-    </button>
-  )}
-</div>
+              {pendientesOffline.length > 0 && (
+                <button
+                  type="button"
+                  disabled={!estaOnline || sincronizandoOffline}
+                  onClick={sincronizarColaOffline}
+                  className="px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold transition-all"
+                >
+                  {sincronizandoOffline
+                    ? "Sincronizando..."
+                    : `⬆️ Sincronizar (${pendientesOffline.length})`}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </header>
@@ -1830,7 +1781,7 @@ const construirDocumentoDependiente = (
               </div>
 
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">Adscripción Territorial (Coordinador de ASIC)</span>
+                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">Adscripción Territorial</span>
                 <div>
                   <label className="block text-[10px] text-slate-400 uppercase mb-1">Estado</label>
                   <select value={editEstado} onChange={(e) => {
@@ -1880,17 +1831,17 @@ const construirDocumentoDependiente = (
         </div>
       )}
 
-      {/* MODAL TARJETA DE VACUNACIÓN DIGITAL / EXPORTABLE A PDF */}
+      {/* MODAL TARJETA DE VACUNACIÓN CONSOLIDADA POR PACIENTE */}
       {tarjetaPacienteDoc && cabeceraTarjeta && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:static print:bg-transparent print:p-0">
-          <div className="bg-slate-900 border border-cyan-700/80 p-6 rounded-2xl max-w-xl w-full space-y-4 shadow-2xl print:bg-white print:text-black print:border-black print:shadow-none print:max-w-full">
+          <div className="bg-slate-900 border border-cyan-700/80 p-6 rounded-2xl max-w-3xl w-full space-y-4 shadow-2xl print:bg-white print:text-black print:border-black print:shadow-none print:max-w-full">
             <div className="flex justify-between items-start border-b border-slate-800 pb-3 print:border-slate-300">
               <div className="flex items-center gap-3">
                 {cabeceraTarjeta.fotoPacienteUrl && (
-                  <img src={cabeceraTarjeta.fotoPacienteUrl} alt="Paciente" className="w-14 h-14 rounded-xl object-cover border border-cyan-500" />
+                  <img src={cabeceraTarjeta.fotoPacienteUrl} alt="Paciente" className="w-14 h-14 rounded-xl object-cover border border-cyan-500 print:hidden" />
                 )}
                 <div>
-                  <span className="text-[10px] font-bold uppercase text-cyan-400 print:text-cyan-800 block">Tarjeta Oficial de Inmunización PAI</span>
+                  <span className="text-[10px] font-bold uppercase text-cyan-400 print:text-cyan-800 block">Tarjeta Consolidada de Inmunización PAI</span>
                   <h3 className="text-lg font-extrabold text-white print:text-black">{cabeceraTarjeta.pacienteNombre}</h3>
                   <span className="text-xs font-mono text-slate-300 print:text-slate-700 block">ID / Cédula: {cabeceraTarjeta.pacienteDocumento}</span>
                 </div>
@@ -1900,27 +1851,30 @@ const construirDocumentoDependiente = (
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800 print:bg-slate-50 print:border-slate-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800 print:bg-slate-50 print:border-slate-300">
               <div><span className="text-slate-400 print:text-slate-600">Nacimiento:</span> <strong className="font-mono">{cabeceraTarjeta.fechaNacimiento || "N/A"}</strong></div>
               <div><span className="text-slate-400 print:text-slate-600">Grupo Etario:</span> <strong>{cabeceraTarjeta.grupoEtario}</strong></div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <span className="text-slate-400 print:text-slate-600">Jurisdicción:</span>{" "}
                 <strong>{cabeceraTarjeta.direccion?.estado} &bull; {cabeceraTarjeta.direccion?.municipio} &bull; {cabeceraTarjeta.direccion?.parroquia}</strong>
               </div>
               {cabeceraTarjeta.representante && (
-                <div className="col-span-2 text-purple-300 print:text-purple-900">
+                <div className="sm:col-span-2 text-purple-300 print:text-purple-900">
                   Representante: <strong>{cabeceraTarjeta.representante.nombre}</strong> (C.I: {cabeceraTarjeta.representante.cedula} &bull; Hijo {cabeceraTarjeta.representante.hijo})
                 </div>
               )}
             </div>
 
             <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase text-emerald-400 print:text-emerald-800">Esquema Aplicado ({historialTarjeta.length})</h4>
+              <h4 className="text-xs font-bold uppercase text-emerald-400 print:text-emerald-800">Esquema Consolidado ({historialTarjeta.length} dosis)</h4>
               <div className="max-h-56 overflow-y-auto space-y-2 print:max-h-none print:overflow-visible">
                 {historialTarjeta.map((item) => (
                   <div key={item.id} className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-center print:bg-white print:border-slate-300">
                     <div>
-                      <div className="font-bold text-white print:text-black">{item.vacuna} &mdash; <span className="text-emerald-400 print:text-emerald-700">{item.dosis}</span></div>
+                      <div className="font-bold text-white print:text-black">
+                        {item.vacuna} &mdash; <span className="text-emerald-400 print:text-emerald-700">{item.dosis}</span>
+                        {item.esHistorico && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300">Libro Físico</span>}
+                      </div>
                       <div className="text-[10px] text-slate-400 font-mono print:text-slate-600">
                         Lote: {item.lote} | Vence: {item.vencimiento || "N/A"} | Fecha: {item.fecha}
                       </div>
@@ -1939,7 +1893,7 @@ const construirDocumentoDependiente = (
                 onClick={() => window.print()}
                 className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-lg"
               >
-                📄 Descargar / Guardar como PDF
+                📄 Descargar / Guardar como PDF (Horizontal)
               </button>
             </div>
           </div>
@@ -1968,7 +1922,7 @@ const construirDocumentoDependiente = (
                   <button
                     type="button"
                     onClick={() => setMostrarClave((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-300 hover:text-white"
+                    className="absolute right-3 top-9 text-[11px] font-semibold text-slate-300 hover:text-white"
                   >
                     {mostrarClave ? "Ocultar" : "Ver"}
                   </button>
@@ -2047,32 +2001,69 @@ const construirDocumentoDependiente = (
           </div>
         ) : (
           <div className="space-y-6">
+            {/* BARRA DE NAVEGACIÓN JERÁRQUICA (Regional > ASIC > Vacunador) */}
             <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 flex flex-wrap gap-2 items-center justify-between">
               <div className="flex flex-wrap gap-2">
-                {usuarioAutenticado.rol === "Vacunador de Campo" && (
+                {puedeVerGestionRegional && (
+                  <button
+                    type="button"
+                    onClick={() => setPestañaActiva("regional")}
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "regional" ? "bg-indigo-600 text-white shadow-lg" : "bg-slate-950 text-slate-400 hover:text-white"}`}
+                  >
+                    🏛️ Tablero Estadal
+                  </button>
+                )}
+
+                {puedeVerGestionASIC && (
                   <>
-                    <button onClick={() => setPestañaActiva("registro")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "registro" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>💉 Registro Inteligente</button>
-                    <button onClick={() => setPestañaActiva("libro")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "libro" ? "bg-purple-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📖 Transcribir Libro Físico</button>
-                    <button onClick={() => setPestañaActiva("reportePersonal")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "reportePersonal" ? "bg-cyan-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📊 Mis Dosis Aplicadas</button>
+                    <button
+                      type="button"
+                      onClick={() => setPestañaActiva("coordinacion")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "coordinacion" ? "bg-cyan-600 text-white shadow-lg" : "bg-slate-950 text-slate-400 hover:text-white"}`}
+                    >
+                      📋 Consolidado ASIC & ESAVI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPestañaActiva("inventario")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "inventario" ? "bg-amber-600 text-white shadow-lg" : "bg-slate-950 text-slate-400 hover:text-white"}`}
+                    >
+                      📦 Frío, Lotes y Descartables
+                    </button>
                   </>
                 )}
-                {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && (
+
+                {puedeVerOperacionVacunador && (
                   <>
-                  <button onClick={() => setPestañaActiva("inventario")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "inventario" ? "bg-amber-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📦 Frío, Lotes y Descartables</button>
-                    <button onClick={() => setPestañaActiva("coordinacion")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "coordinacion" ? "bg-cyan-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>📋 Consolidado ASIC & ESAVI</button>
-                    
+                    <button
+                      type="button"
+                      onClick={() => setPestañaActiva("registro")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "registro" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-950 text-slate-400 hover:text-white"}`}
+                    >
+                      💉 Registro Inteligente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPestañaActiva("libro")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "libro" ? "bg-purple-600 text-white shadow-lg" : "bg-slate-950 text-slate-400 hover:text-white"}`}
+                    >
+                      📖 Transcribir Libro Físico
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPestañaActiva("reportePersonal")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "reportePersonal" ? "bg-cyan-700 text-white shadow-lg" : "bg-slate-950 text-slate-400 hover:text-white"}`}
+                    >
+                      📊 Mis Dosis Aplicadas
+                    </button>
                   </>
-                )}
-                {usuarioAutenticado.rol === "Coordinador Regional PAI" && (
-                  <button onClick={() => setPestañaActiva("regional")} className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${pestañaActiva === "regional" ? "bg-indigo-600 text-white shadow-lg" : "bg-slate-950 text-slate-400"}`}>🏛️ Tablero Estadal Resumido</button>
                 )}
               </div>
             </div>
 
-            {/* VISTA: VACUNADOR DE CAMPO */}
-            {usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "registro" && (
+            {/* VISTA: REGISTRO INTELIGENTE EN TERRENO */}
+            {puedeVerOperacionVacunador && pestañaActiva === "registro" && (
               <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-3xl mx-auto space-y-4 relative">
-
                 <div className="p-3 bg-cyan-950/40 border border-cyan-800/60 rounded-xl text-xs flex justify-between items-center">
                   <div>
                     <span className="text-cyan-400 font-bold uppercase block">📍 Jurisdicción Operativa Asignada:</span>
@@ -2106,7 +2097,6 @@ const construirDocumentoDependiente = (
                 {mensajeExito && <div className="p-3 bg-emerald-950 border border-emerald-700 rounded-xl text-xs text-emerald-300 font-semibold">✓ Dosis registrada, lote y jeringa descontados del inventario de la ASIC.</div>}
 
                 <form onSubmit={handleGuardarVacunacion} className="space-y-4">
-
                   <div className="p-3.5 bg-slate-950 rounded-xl border border-cyan-900/60 space-y-3">
                     <label className="flex items-center gap-2 cursor-pointer text-xs">
                       <input type="checkbox" checked={esNuevoPaciente} onChange={(e) => setEsNuevoPaciente(e.target.checked)} className="accent-cyan-500 rounded" />
@@ -2162,7 +2152,7 @@ const construirDocumentoDependiente = (
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Modalidad PAI</label>
-                      <select value={tipoActividad} onChange={(e) => setTipoActividad(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-semibold text-cyan-300">
+                      <select value={tipoActividad} onChange={(e) => setTipoActividad(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-cyan-300 font-semibold">
                         {TIPOS_ACTIVIDAD_PAI.map(act => <option key={act} value={act}>{act}</option>)}
                       </select>
                     </div>
@@ -2208,7 +2198,7 @@ const construirDocumentoDependiente = (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
                       <div>
                         <label className="block text-[10px] text-slate-400 uppercase mb-1">Sector / Caserío / Comunidad</label>
-                        <input type="text" placeholder="Ej: Las Casitas / Sector Sur" value={sectorManual} onChange={(e) => setSectorManual(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-semibold text-cyan-300" required />
+                        <input type="text" placeholder="Ej: Las Casitas / Sector Sur" value={sectorManual} onChange={(e) => setSectorManual(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-cyan-300 font-semibold" required />
                       </div>
                       <div>
                         <label className="block text-[10px] text-slate-400 uppercase mb-1">Calle / Vereda</label>
@@ -2304,14 +2294,14 @@ const construirDocumentoDependiente = (
               </div>
             )}
 
-            {/* VISTA: LIBRO FÍSICO */}
-            {usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "libro" && (
+            {/* VISTA: TRANSCRIBIR LIBRO FÍSICO (HISTÓRICO) */}
+            {puedeVerOperacionVacunador && pestañaActiva === "libro" && (
               <div className="bg-slate-900 p-6 rounded-2xl border border-purple-800 shadow-xl max-w-2xl mx-auto space-y-4">
                 <h3 className="text-lg font-bold text-purple-300">📖 Transcripción Rápida de Libro Físico</h3>
                 <form onSubmit={handleGuardarLibro} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/90 p-5 shadow-xl">
                   <div>
-                    <h3 className="text-lg font-bold text-white">Registro de Libro Físico (Histórico)</h3>
-                    <p className="text-xs text-slate-400">Carga estructurada por paciente y biológico aplicado</p>
+                    <h4 className="text-base font-bold text-white">Registro de Libro Físico (Histórico)</h4>
+                    <p className="text-xs text-slate-400">Carga histórica por paciente y biológico aplicado (no modifica inventario en vivo)</p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2373,49 +2363,16 @@ const construirDocumentoDependiente = (
                           onChange={(e) => setLibroForm({ ...libroForm, sufijoFamiliar: e.target.value })}
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-purple-500"
                         >
-       <option value="H1">H1 (1er hijo/dependiente)</option>
-                <option value="H2">H2 (2do hijo/dependiente)</option>
-                <option value="H3">H3 (3er hijo/dependiente)</option>
-                <option value="H4">H4 (4to hijo/dependiente)</option>
-                <option value="H5">H5 (5to hijo/dependiente)</option>
-                <option value="H6">H6 (6to hijo/dependiente)</option>
+                          <option value="H1">H1 (1er hijo/dependiente)</option>
+                          <option value="H2">H2 (2do hijo/dependiente)</option>
+                          <option value="H3">H3 (3er hijo/dependiente)</option>
+                          <option value="H4">H4 (4to hijo/dependiente)</option>
+                          <option value="H5">H5 (5to hijo/dependiente)</option>
+                          <option value="H6">H6 (6to hijo/dependiente)</option>
                         </select>
                       </div>
                     ) : (
-                      
                       <div>
-                        <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 mt-3">
-                <label className="flex items-center gap-2.5 text-xs text-slate-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={esInclusion}
-                    onChange={(e) => {
-                      setEsInclusion(e.target.checked);
-                      if (!e.target.checked) setPaisInclusion("");
-                    }}
-                    className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
-                  />
-                  <span className="font-semibold text-indigo-300">
-                    🌎 Registro por Inclusión (Transcripción de tarjeta extranjera / antecedente fuera de Venezuela)
-                  </span>
-                </label>
-
-                {esInclusion && (
-                  <div>
-                    <label className="block text-[10px] text-slate-400 uppercase mb-1">
-                      País donde se aplicaron las dosis previas *
-                    </label>
-                    <input
-                      type="text"
-                      required={esInclusion}
-                      placeholder="Ej: Colombia, Brasil, Ecuador, Perú, Chile, España..."
-                      value={paisInclusion}
-                      onChange={(e) => setPaisInclusion(e.target.value)}
-                      className="w-full bg-slate-900 border border-indigo-700/60 rounded-xl px-3 py-2 text-white text-xs"
-                    />
-                  </div>
-                )}
-              </div>
                         <label className="mb-1 block text-xs font-medium text-slate-300">Fecha de Nacimiento</label>
                         <input
                           type="date"
@@ -2427,6 +2384,38 @@ const construirDocumentoDependiente = (
                     )}
                   </div>
 
+                  <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <label className="flex items-center gap-2.5 text-xs text-slate-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={esInclusion}
+                        onChange={(e) => {
+                          setEsInclusion(e.target.checked);
+                          if (!e.target.checked) setPaisInclusion("");
+                        }}
+                        className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
+                      />
+                      <span className="font-semibold text-indigo-300">
+                        🌎 Registro por Inclusión (Transcripción de tarjeta extranjera / antecedente fuera de Venezuela)
+                      </span>
+                    </label>
+
+                    {esInclusion && (
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase mb-1">
+                          País donde se aplicaron las dosis previas *
+                        </label>
+                        <input
+                          type="text"
+                          required={esInclusion}
+                          placeholder="Ej: Colombia, Brasil, Ecuador, Perú, Chile, España..."
+                          value={paisInclusion}
+                          onChange={(e) => setPaisInclusion(e.target.value)}
+                          className="w-full bg-slate-900 border border-indigo-700/60 rounded-xl px-3 py-2 text-white text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
@@ -2502,7 +2491,7 @@ const construirDocumentoDependiente = (
                       disabled={guardandoLibro}
                       className="flex-1 rounded-xl bg-purple-600 py-3 text-sm font-bold text-white transition hover:bg-purple-500 disabled:opacity-50"
                     >
-                      {guardandoLibro ? "Guardando datos..." : "Guardar datos"}
+                      {guardandoLibro ? "Guardando datos..." : "Guardar registro histórico"}
                     </button>
 
                     <button
@@ -2513,7 +2502,7 @@ const construirDocumentoDependiente = (
                           apellidos: "",
                           tipoCedula: "propia",
                           cedula: "",
-                          sufijoFamiliar: "-01",
+                          sufijoFamiliar: "H1",
                           fechaNacimiento: "",
                           biologico: "Pentavalente (DPT+HB+Hib)",
                           numeroDosis: "1",
@@ -2521,6 +2510,8 @@ const construirDocumentoDependiente = (
                           fechaColocacion: "",
                           condicionEsquema: "Al dia",
                         });
+                        setEsInclusion(false);
+                        setPaisInclusion("");
                         setMensajeLibro(null);
                       }}
                       className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-xs font-semibold text-slate-300 hover:bg-slate-700"
@@ -2533,7 +2524,7 @@ const construirDocumentoDependiente = (
             )}
 
             {/* VISTA: MIS DOSIS + TARJETA PDF */}
-            {usuarioAutenticado.rol === "Vacunador de Campo" && pestañaActiva === "reportePersonal" && (
+            {puedeVerOperacionVacunador && pestañaActiva === "reportePersonal" && (
               <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
                 <h3 className="text-lg font-bold text-white">📊 Dosis Aplicadas por Mí ({misRegistros.length})</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -2547,14 +2538,14 @@ const construirDocumentoDependiente = (
                         )}
                         <div className="font-bold text-white">{r.pacienteNombre}</div>
                         <div className="text-[10px] text-cyan-400 font-mono">Doc: {r.pacienteDocumento}</div>
-{r.representante && (
-                      <div className="text-[10px] text-purple-300">Rep: {r.representante.nombre} (C.I: {r.representante.cedula})</div>
-                    )}
-                    {r.esInclusion && (
-                      <div className="text-[10px] text-indigo-300 font-semibold">
-                        🌎 Inclusión: {r.paisInclusion || "País no especificado"}
-                      </div>
-                    )}
+                        {r.representante && (
+                          <div className="text-[10px] text-purple-300">Rep: {r.representante.nombre} (C.I: {r.representante.cedula})</div>
+                        )}
+                        {r.esInclusion && (
+                          <div className="text-[10px] text-indigo-300 font-semibold">
+                            🌎 Inclusión: {r.paisInclusion || "País no especificado"}
+                          </div>
+                        )}
                         <div className="text-slate-300 text-[10px]">📍 {r.direccion?.parroquia} - {r.direccion?.sector}</div>
                         <div className="text-emerald-400 font-mono font-semibold mt-1">{r.vacuna} ({r.dosis})</div>
                         <div className="text-amber-300 text-[10px]">🏷️ Lote: {r.lote} | Prox. Cita: {r.proximaCita || "N/A"}</div>
@@ -2571,300 +2562,306 @@ const construirDocumentoDependiente = (
                 </div>
               </div>
             )}
-{/* VISTA: COORDINADOR ASIC (INVENTARIO: FRÍO, LOTES Y DESCARTABLES) */}
-{usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "inventario" && (
-  <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-5xl mx-auto space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
-      <div>
-        <h2 className="text-base font-bold text-amber-400">
-          📦 Inventario Operativo ASIC — Frío, Lotes y Descartables
-        </h2>
-        <p className="text-xs text-slate-400">
-          {usuarioAutenticado.estado} • Municipio / ASIC: {usuarioAutenticado.municipio}
-        </p>
-      </div>
-    </div>
 
-    {/* 1. EQUIPOS DE CADENA DE FRÍO */}
-    <div className="space-y-3">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-        ❄️ Equipos de Cadena de Frío ({equiposFrioASIC.length})
-      </h3>
+            {/* VISTA: INVENTARIO ASIC (FRÍO, LOTES Y DESCARTABLES) */}
+            {puedeVerGestionASIC && pestañaActiva === "inventario" && (
+              <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl max-w-5xl mx-auto space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
+                  <div>
+                    <h2 className="text-base font-bold text-amber-400">
+                      📦 Inventario Operativo ASIC — Frío, Lotes y Descartables
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      {usuarioAutenticado.estado} • Municipio / ASIC: {usuarioAutenticado.municipio}
+                    </p>
+                  </div>
+                </div>
 
-      {equiposFrioASIC.length === 0 ? (
-        <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-          Sin equipos cargados. Registra abajo los refrigeradores, congeladores o termos reales de este ASIC.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {equiposFrioASIC.map((eq: any, idx: number) => (
-            <div key={eq.id || idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-start gap-2">
-              <div className="space-y-1">
-                <div className="font-bold text-white">{eq.tipo} — {eq.modelo}</div>
-                <div className="text-slate-400 font-mono">Serial / Código: {eq.serial || eq.id}</div>
-                <div className="text-emerald-400">{eq.estado || "Operativo"}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const nuevos = equiposFrioASIC.filter((_, i) => i !== idx);
-                  setEquiposFrioASIC(nuevos);
-                  guardarInventarioLocal(nuevos, inventarioLotesASIC, stockDescartables);
-                }}
-                className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
-              >
-                Quitar
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                {/* 1. EQUIPOS DE CADENA DE FRÍO */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                    ❄️ Equipos de Cadena de Frío ({equiposFrioASIC.length})
+                  </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-        <select
-          value={nuevoTipoFrio}
-          onChange={(e) => setNuevoTipoFrio(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-        >
-          <option value="Refrigerador Vertical">Refrigerador Vertical</option>
-          <option value="Refrigerador Horizontal / Ice-Lined">Refrigerador Horizontal / Ice-Lined</option>
-          <option value="Congelador">Congelador</option>
-          <option value="Cava Térmica">Cava Térmica</option>
-          <option value="Termo Portavacunas">Termo Portavacunas</option>
-        </select>
-        <input
-          type="text"
-          placeholder="Marca / Modelo real del equipo"
-          value={nuevoModeloFrio}
-          onChange={(e) => setNuevoModeloFrio(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-        />
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Serial / Bien Nacional"
-            value={nuevoSerialFrio}
-            onChange={(e) => setNuevoSerialFrio(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (!nuevoModeloFrio.trim() || !nuevoSerialFrio.trim()) return;
-              const nuevos = [
-                ...equiposFrioASIC,
-                {
-                  id: `${Date.now()}`,
-                  tipo: nuevoTipoFrio,
-                  modelo: nuevoModeloFrio.trim(),
-                  serial: nuevoSerialFrio.trim(),
-                  estado: "Operativo",
-                },
-              ];
-              setEquiposFrioASIC(nuevos);
-              guardarInventarioLocal(nuevos, inventarioLotesASIC, stockDescartables);
-              setNuevoModeloFrio("");
-              setNuevoSerialFrio("");
-            }}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
-          >
-            + Cargar
-          </button>
-        </div>
-      </div>
-    </div>
+                  {equiposFrioASIC.length === 0 ? (
+                    <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                      Sin equipos cargados. Registra abajo los refrigeradores, congeladores o termos reales de este ASIC.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {equiposFrioASIC.map((eq: any, idx: number) => (
+                        <div key={eq.id || idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-start gap-2">
+                          <div className="space-y-1">
+                            <div className="font-bold text-white">{eq.tipo} — {eq.modelo}</div>
+                            <div className="text-slate-400 font-mono">Serial / Código: {eq.serial || eq.id}</div>
+                            <div className="text-emerald-400">{eq.estado || "Operativo"}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nuevos = equiposFrioASIC.filter((_, i) => i !== idx);
+                              setEquiposFrioASIC(nuevos);
+                              guardarInventarioLocal(nuevos, inventarioLotesASIC, stockDescartables);
+                            }}
+                            className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-    {/* 2. LOTES DE BIOLÓGICOS / VACUNAS */}
-    <div className="space-y-3 pt-4 border-t border-slate-800">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-        🧬 Lotes de Biológicos en Existencia ({inventarioLotesASIC.length})
-      </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                    <select
+                      value={nuevoTipoFrio}
+                      onChange={(e) => setNuevoTipoFrio(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                    >
+                      <option value="Refrigerador Vertical">Refrigerador Vertical</option>
+                      <option value="Refrigerador Horizontal / Ice-Lined">Refrigerador Horizontal / Ice-Lined</option>
+                      <option value="Congelador">Congelador</option>
+                      <option value="Cava Térmica">Cava Térmica</option>
+                      <option value="Termo Portavacunas">Termo Portavacunas</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Marca / Modelo real del equipo"
+                      value={nuevoModeloFrio}
+                      onChange={(e) => setNuevoModeloFrio(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Serial / Bien Nacional"
+                        value={nuevoSerialFrio}
+                        onChange={(e) => setNuevoSerialFrio(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!nuevoModeloFrio.trim() || !nuevoSerialFrio.trim()) return;
+                          const itemEquipo = {
+                            id: `EQ-${nuevoSerialFrio.trim()}-${Date.now()}`,
+                            tipo: nuevoTipoFrio,
+                            modelo: nuevoModeloFrio.trim(),
+                            serial: nuevoSerialFrio.trim(),
+                            ubicacion: `ASIC ${usuarioAutenticado?.municipio || ""}`,
+                            estado: "Operativo",
+                          };
+                          const nuevos = [...equiposFrioASIC, itemEquipo];
+                          setEquiposFrioASIC(nuevos);
+                          guardarInventarioLocal(nuevos, inventarioLotesASIC, stockDescartables);
+                          await syncEquipoFrioCloud(itemEquipo);
+                          setNuevoModeloFrio("");
+                          setNuevoSerialFrio("");
+                        }}
+                        className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
+                      >
+                        + Cargar
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-      {inventarioLotesASIC.length === 0 ? (
-        <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
-          Sin lotes cargados. Agrega abajo cada biológico con su número de lote, dosis disponibles y fecha de vencimiento.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-          {inventarioLotesASIC.map((lote: any, idx: number) => (
-            <div key={lote.id || idx} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center gap-2">
-              <div>
-                <div className="font-bold text-white">{lote.biologico}</div>
-                <div className="text-slate-400 font-mono">
-                  Lote: {lote.codigo} {lote.vencimiento ? `• Vence: ${lote.vencimiento}` : ""}
+                {/* 2. LOTES DE BIOLÓGICOS / VACUNAS */}
+                <div className="space-y-3 pt-4 border-t border-slate-800">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                    🧬 Lotes de Biológicos en Existencia ({inventarioLotesASIC.length})
+                  </h3>
+
+                  {inventarioLotesASIC.length === 0 ? (
+                    <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                      Sin lotes cargados. Agrega abajo cada biológico con su número de lote, dosis disponibles y fecha de vencimiento.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                      {inventarioLotesASIC.map((lote: any, idx: number) => (
+                        <div key={lote.id || idx} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center gap-2">
+                          <div>
+                            <div className="font-bold text-white">{lote.biologico}</div>
+                            <div className="text-slate-400 font-mono">
+                              Lote: {lote.codigo} {lote.vencimiento ? `• Vence: ${lote.vencimiento}` : ""}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-emerald-300">{lote.dosis} dosis</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nuevos = inventarioLotesASIC.filter((_, i) => i !== idx);
+                                setInventarioLotesASIC(nuevos);
+                                guardarInventarioLocal(equiposFrioASIC, nuevos, stockDescartables);
+                              }}
+                              className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-1">
+                    <select
+                      value={nuevoBiologicoLote}
+                      onChange={(e) => setNuevoBiologicoLote(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                    >
+                      <option value="BCG">BCG</option>
+                      <option value="Antihepatitis B">Antihepatitis B</option>
+                      <option value="Pentavalente">Pentavalente</option>
+                      <option value="Polio IPV">Polio IPV</option>
+                      <option value="Polio Oral (bOPV)">Polio Oral (bOPV)</option>
+                      <option value="Antirrotavirus">Antirrotavirus</option>
+                      <option value="Antineumococo 13V">Antineumococo 13V</option>
+                      <option value="SRP (Trivalente Viral)">SRP (Trivalente Viral)</option>
+                      <option value="SR (Doble Viral)">SR (Doble Viral)</option>
+                      <option value="Antiamarílica (Fiebre Amarilla)">Antiamarílica (Fiebre Amarilla)</option>
+                      <option value="Toxoide Tetánico Diftérico (Td)">Toxoide Tetánico Diftérico (Td)</option>
+                      <option value="Antiinfluenza">Antiinfluenza</option>
+                      <option value="VPH">VPH</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="N° de Lote"
+                      value={nuevoCodigoLote}
+                      onChange={(e) => setNuevoCodigoLote(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                    />
+                    <input
+                      type="date"
+                      value={nuevoVencimientoLote}
+                      onChange={(e) => setNuevoVencimientoLote(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Dosis"
+                        value={nuevaCantidadLote}
+                        onChange={(e) => setNuevaCantidadLote(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const cant = Number(nuevaCantidadLote);
+                          if (!nuevoCodigoLote.trim() || !cant || cant <= 0) return;
+                          const codUpper = nuevoCodigoLote.trim().toUpperCase();
+                          const itemLote = {
+                            id: `${Date.now()}`,
+                            biologico: nuevoBiologicoLote,
+                            vacuna: nuevoBiologicoLote,
+                            codigo: codUpper,
+                            lote: codUpper,
+                            vencimiento: nuevoVencimientoLote,
+                            dosis: cant,
+                            cantidad: cant,
+                          };
+                          const nuevos = [...inventarioLotesASIC, itemLote];
+                          setInventarioLotesASIC(nuevos);
+                          guardarInventarioLocal(equiposFrioASIC, nuevos, stockDescartables);
+                          await syncLoteCloud(itemLote);
+                          setNuevoCodigoLote("");
+                          setNuevaCantidadLote("");
+                          setNuevoVencimientoLote("");
+                        }}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
+                      >
+                        + Cargar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. INSUMOS Y MATERIAL DESCARTABLE */}
+                <div className="space-y-3 pt-4 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                      💉 Insumos y Material Descartable
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const cero = { jeringas01ml: 0, jeringas05ml: 0, jeringas5ml: 0, cajasBioseguridad: 0 };
+                        setStockDescartables(cero);
+                        guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, cero);
+                        await syncDescartablesCloud(cero);
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-rose-300 underline"
+                    >
+                      Reiniciar a 0
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 block">Jeringas 0.1 ml</span>
+                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas01ml}</span>
+                    </div>
+                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 block">Jeringas 0.5 ml</span>
+                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas05ml}</span>
+                    </div>
+                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 block">Jeringas 5 ml</span>
+                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas5ml}</span>
+                    </div>
+                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 block">Cajas Bioseguridad</span>
+                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.cajasBioseguridad}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                    <select
+                      value={tipoInsumoCargar}
+                      onChange={(e) => setTipoInsumoCargar(e.target.value as any)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                    >
+                      <option value="jeringas01ml">Jeringas 0.1 ml (BCG)</option>
+                      <option value="jeringas05ml">Jeringas 0.5 ml (Pentavalente / SRP / Td)</option>
+                      <option value="jeringas5ml">Jeringas 5 ml (Dilución)</option>
+                      <option value="cajasBioseguridad">Cajas de Bioseguridad</option>
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Cantidad a ingresar"
+                      value={cantidadInsumoCargar}
+                      onChange={(e) => setCantidadInsumoCargar(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const cant = Number(cantidadInsumoCargar);
+                        if (!cant || cant <= 0) return;
+                        const actualizado = {
+                          ...stockDescartables,
+                          [tipoInsumoCargar]: (stockDescartables[tipoInsumoCargar] || 0) + cant,
+                        };
+                        setStockDescartables(actualizado);
+                        guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, actualizado);
+                        await syncDescartablesCloud(actualizado);
+                        setCantidadInsumoCargar("");
+                      }}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs"
+                    >
+                      + Sumar al Stock
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-bold text-emerald-300">{lote.dosis} dosis</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nuevos = inventarioLotesASIC.filter((_, i) => i !== idx);
-                    setInventarioLotesASIC(nuevos);
-                    guardarInventarioLocal(equiposFrioASIC, nuevos, stockDescartables);
-                  }}
-                  className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
-                >
-                  Quitar
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-1">
-        <select
-          value={nuevoBiologicoLote}
-          onChange={(e) => setNuevoBiologicoLote(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-        >
-          <option value="BCG">BCG</option>
-          <option value="Antihepatitis B">Antihepatitis B</option>
-          <option value="Pentavalente">Pentavalente</option>
-          <option value="Polio IPV">Polio IPV</option>
-          <option value="Polio Oral (bOPV)">Polio Oral (bOPV)</option>
-          <option value="Antirrotavirus">Antirrotavirus</option>
-          <option value="Antineumococo 13V">Antineumococo 13V</option>
-          <option value="SRP (Trivalente Viral)">SRP (Trivalente Viral)</option>
-          <option value="SR (Doble Viral)">SR (Doble Viral)</option>
-          <option value="Antiamarílica (Fiebre Amarilla)">Antiamarílica (Fiebre Amarilla)</option>
-          <option value="Toxoide Tetánico Diftérico (Td)">Toxoide Tetánico Diftérico (Td)</option>
-          <option value="Antiinfluenza">Antiinfluenza</option>
-          <option value="VPH">VPH</option>
-        </select>
-        <input
-          type="text"
-          placeholder="N° de Lote"
-          value={nuevoCodigoLote}
-          onChange={(e) => setNuevoCodigoLote(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
-        />
-        <input
-          type="date"
-          value={nuevaCantidadLote && false ? "" : nuevoVencimientoLote}
-          onChange={(e) => setNuevoVencimientoLote(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-        />
-        <div className="flex gap-2">
-          <input
-            type="number"
-            min="1"
-            placeholder="Dosis"
-            value={nuevaCantidadLote}
-            onChange={(e) => setNuevaCantidadLote(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const cant = Number(nuevaCantidadLote);
-              if (!nuevoCodigoLote.trim() || !cant || cant <= 0) return;
-              const nuevos = [
-                ...inventarioLotesASIC,
-                {
-                  id: `${Date.now()}`,
-                  biologico: nuevoBiologicoLote,
-                  codigo: nuevoCodigoLote.trim().toUpperCase(),
-                  vencimiento: nuevoVencimientoLote,
-                  dosis: cant,
-                },
-              ];
-              setInventarioLotesASIC(nuevos);
-              guardarInventarioLocal(equiposFrioASIC, nuevos, stockDescartables);
-              setNuevoCodigoLote("");
-              setNuevaCantidadLote("");
-              setNuevoVencimientoLote("");
-            }}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
-          >
-            + Cargar
-          </button>
-        </div>
-      </div>
-    </div>
-
-    {/* 3. INSUMOS Y MATERIAL DESCARTABLE */}
-    <div className="space-y-3 pt-4 border-t border-slate-800">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-          💉 Insumos y Material Descartable
-        </h3>
-        <button
-          type="button"
-          onClick={() => {
-            const cero = { jeringas01ml: 0, jeringas05ml: 0, jeringas5ml: 0, cajasBioseguridad: 0 };
-            setStockDescartables(cero);
-            guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, cero);
-          }}
-          className="text-[11px] text-slate-400 hover:text-rose-300 underline"
-        >
-          Reiniciar a 0
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Jeringas 0.1 ml</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas01ml}</span>
-        </div>
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Jeringas 0.5 ml</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas05ml}</span>
-        </div>
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Jeringas 5 ml</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas5ml}</span>
-        </div>
-        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span className="text-slate-400 block">Cajas Bioseguridad</span>
-          <span className="text-lg font-bold font-mono text-white">{stockDescartables.cajasBioseguridad}</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-        <select
-          value={tipoInsumoCargar}
-          onChange={(e) => setTipoInsumoCargar(e.target.value as any)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-        >
-          <option value="jeringas01ml">Jeringas 0.1 ml (BCG)</option>
-          <option value="jeringas05ml">Jeringas 0.5 ml (Pentavalente / SRP / Td)</option>
-          <option value="jeringas5ml">Jeringas 5 ml (Dilución)</option>
-          <option value="cajasBioseguridad">Cajas de Bioseguridad</option>
-        </select>
-        <input
-          type="number"
-          min="1"
-          placeholder="Cantidad a ingresar"
-          value={cantidadInsumoCargar}
-          onChange={(e) => setCantidadInsumoCargar(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            const cant = Number(cantidadInsumoCargar);
-            if (!cant || cant <= 0) return;
-            const actualizado = {
-              ...stockDescartables,
-              [tipoInsumoCargar]: (stockDescartables[tipoInsumoCargar] || 0) + cant,
-            };
-            setStockDescartables(actualizado);
-            guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, actualizado);
-            setCantidadInsumoCargar("");
-          }}
-          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs"
-        >
-          + Sumar al Stock
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* VISTA: COORDINADOR ASIC (CONSOLIDADO) */}
-            {usuarioAutenticado.rol === "Coordinador Municipal / ASIC" && pestañaActiva === "coordinacion" && (
+            {/* VISTA: CONSOLIDADO ASIC */}
+            {puedeVerGestionASIC && pestañaActiva === "coordinacion" && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
@@ -2880,7 +2877,8 @@ const construirDocumentoDependiente = (
                     <span className="text-2xl font-bold font-mono text-amber-400 mt-1 block">{registrosJurisdiccionASIC.filter(r => r.tieneEsavi).length} Casos</span>
                   </div>
                 </div>
-<div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4">
+
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-bold text-cyan-400 uppercase">
@@ -2890,7 +2888,7 @@ const construirDocumentoDependiente = (
                         Filtra por rango de fecha, biológico, sexo, grupo etario, parroquia o palabra clave.
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -2917,6 +2915,18 @@ const construirDocumentoDependiente = (
                         className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
                       >
                         📊 Exportar Excel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          exportarReportePDF(
+                            registrosASICFiltrados,
+                            `Reporte PAI ASIC — ${usuarioAutenticado?.municipio || "Municipal"}`
+                          )
+                        }
+                        className="text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
+                      >
+                        📄 Exportar PDF
                       </button>
                     </div>
                   </div>
@@ -2980,7 +2990,6 @@ const construirDocumentoDependiente = (
                         <option value="Niños (1 a 5 Años)">Niños (1 a 5 Años)</option>
                         <option value="Adolescente / Adulto">Adolescente / Adulto</option>
                         <option value="Gestante / Embarazada">Gestante / Embarazada</option>
-                        <option value="Transcripción Libro Físico">Transcripción Libro Físico</option>
                       </select>
                     </div>
                     <div>
@@ -3010,6 +3019,7 @@ const construirDocumentoDependiente = (
                     </div>
                   </div>
                 </div>
+
                 <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
@@ -3064,6 +3074,7 @@ const construirDocumentoDependiente = (
                     </div>
                   )}
                 </div>
+
                 <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
@@ -3146,8 +3157,9 @@ const construirDocumentoDependiente = (
                 </div>
               </div>
             )}
-{/* VISTA: COORDINADOR REGIONAL */}
-            {usuarioAutenticado.rol === "Coordinador Regional PAI" && pestañaActiva === "regional" && (
+
+            {/* VISTA: COORDINADOR REGIONAL */}
+            {puedeVerGestionRegional && pestañaActiva === "regional" && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
@@ -3174,7 +3186,7 @@ const construirDocumentoDependiente = (
                         Filtra por fecha, biológico, sexo, grupo etario o búsqueda en {usuarioAutenticado.estado}.
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -3203,17 +3215,17 @@ const construirDocumentoDependiente = (
                         📊 Exportar Excel
                       </button>
                       <button
-  type="button"
-  onClick={() =>
-    exportarReportePDF(
-      registrosRegionalFiltrados,
-      `Reporte PAI Regional — ${usuarioAutenticado?.estado || "Estadal"}`
-    )
-  }
-  className="text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
->
-  📄 Exportar PDF
-</button>
+                        type="button"
+                        onClick={() =>
+                          exportarReportePDF(
+                            registrosRegionalFiltrados,
+                            `Reporte PAI Regional — ${usuarioAutenticado?.estado || "Estadal"}`
+                          )
+                        }
+                        className="text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-xl transition-all"
+                      >
+                        📄 Exportar PDF
+                      </button>
                     </div>
                   </div>
 
@@ -3276,7 +3288,6 @@ const construirDocumentoDependiente = (
                         <option value="Niños (1 a 5 Años)">Niños (1 a 5 Años)</option>
                         <option value="Adolescente / Adulto">Adolescente / Adulto</option>
                         <option value="Gestante / Embarazada">Gestante / Embarazada</option>
-                        <option value="Transcripción Libro Físico">Transcripción Libro Físico</option>
                       </select>
                     </div>
                     <div className="sm:col-span-3">
