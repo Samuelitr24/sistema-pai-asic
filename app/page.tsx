@@ -538,6 +538,11 @@ export default function Home() {
   const [parroquiaUser, setParroquiaUser] = useState("Valle Guanape");
   const [rol, setRol] = useState<"VAC" | "COOR" | "REGIONAL">("VAC");
 
+  const [descartablesASIC, setDescartablesASIC] = useState<any[]>([]);
+const [nuevoNombreDescartable, setNuevoNombreDescartable] = useState("");
+const [nuevoBiologicoDescartable, setNuevoBiologicoDescartable] = useState("BCG (Tuberculosis)");
+const [nuevaCantidadDescartable, setNuevaCantidadDescartable] = useState("");
+
   const [loginCedula, setLoginCedula] = useState("");
   const [loginClave, setLoginClave] = useState("");
   const [errorMensaje, setErrorMensaje] = useState("");
@@ -813,36 +818,24 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    if (!usuarioAutenticado) return;
-    try {
-      const guardado = localStorage.getItem(claveInventarioASIC);
-      if (guardado) {
-        const data = JSON.parse(guardado);
-        setEquiposFrioASIC(Array.isArray(data.equipos) ? data.equipos : []);
-        setInventarioLotesASIC(Array.isArray(data.lotes) ? data.lotes : []);
-        if (data.descartables) {
-          setStockDescartables({
-            jeringas01ml: Number(data.descartables.jeringas01ml ?? 0),
-            jeringas05ml: Number(data.descartables.jeringas05ml ?? 0),
-            jeringas5ml: Number(data.descartables.jeringas5ml ?? 0),
-            cajasBioseguridad: Number(data.descartables.cajasBioseguridad ?? 0),
-          });
-        }
-      } else {
-        setEquiposFrioASIC([]);
-        setInventarioLotesASIC([]);
-        setStockDescartables({
-          jeringas01ml: 0,
-          jeringas05ml: 0,
-          jeringas5ml: 0,
-          cajasBioseguridad: 0,
-        });
-      }
-    } catch (e) {
-      console.error("Error leyendo inventario local:", e);
+useEffect(() => {
+  if (!usuarioAutenticado) return;
+  try {
+    const guardado = localStorage.getItem(claveInventarioASIC);
+    if (guardado) {
+      const data = JSON.parse(guardado);
+      setEquiposFrioASIC(Array.isArray(data.equipos) ? data.equipos : []);
+      setInventarioLotesASIC(Array.isArray(data.lotes) ? data.lotes : []);
+      setDescartablesASIC(Array.isArray(data.descartables) ? data.descartables : []);
+    } else {
+      setEquiposFrioASIC([]);
+      setInventarioLotesASIC([]);
+      setDescartablesASIC([]);
     }
-  }, [usuarioAutenticado, claveInventarioASIC]);
+  } catch (e) {
+    console.error("Error leyendo inventario local:", e);
+  }
+}, [usuarioAutenticado, claveInventarioASIC]);
 
 useEffect(() => {
     const personal = localStorage.getItem("pai_lista_personal");
@@ -1197,17 +1190,17 @@ useEffect(() => {
       localStorage.setItem("pai_lotes_vacunas", JSON.stringify(copiaLotes));
     }
 
-    const desc = { ...stockDescartables };
-    if (vacunaSeleccionada.includes("BCG")) {
-      desc.jeringas01ml = Math.max(0, desc.jeringas01ml - 1);
-    } else if (vacunaSeleccionada.includes("SR") || vacunaSeleccionada.includes("Fiebre Amarilla")) {
-      desc.jeringas05ml = Math.max(0, desc.jeringas05ml - 1);
-      desc.jeringas5ml = Math.max(0, desc.jeringas5ml - 1);
-    } else {
-      desc.jeringas05ml = Math.max(0, desc.jeringas05ml - 1);
-    }
-    setStockDescartables(desc);
-    guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, desc);
+const nuevosDescartables = descartablesASIC.map((item: any) => {
+  const coincide =
+    item.biologicoAsociado &&
+    vacunaSeleccionada &&
+    vacunaSeleccionada.toLowerCase().includes(String(item.biologicoAsociado).split(" ")[0].toLowerCase());
+  return coincide
+    ? { ...item, cantidad: Math.max(0, Number(item.cantidad || 0) - 1) }
+    : item;
+});
+setDescartablesASIC(nuevosDescartables);
+guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, nuevosDescartables);
 
     const docFinal = busquedaDoc.trim().toUpperCase() || "SIN-CEDULA";
 
@@ -1245,7 +1238,21 @@ useEffect(() => {
 
     await syncRegistroVacunaCloud(nuevoReg);
     if (loteActualizadoObj) await syncLoteCloud(loteActualizadoObj);
-    await syncDescartablesCloud(desc);
+const resumenDescartables = {
+  jeringas01ml: nuevosDescartables
+    .filter((d: any) => String(d.nombre || "").toLowerCase().includes("0.05") || String(d.nombre || "").toLowerCase().includes("0.1") || String(d.biologicoAsociado || "").toLowerCase().includes("bcg"))
+    .reduce((acc: number, d: any) => acc + Number(d.cantidad || 0), 0),
+  jeringas05ml: nuevosDescartables
+    .filter((d: any) => String(d.nombre || "").toLowerCase().includes("0.5"))
+    .reduce((acc: number, d: any) => acc + Number(d.cantidad || 0), 0),
+  jeringas5ml: nuevosDescartables
+    .filter((d: any) => String(d.nombre || "").toLowerCase().includes("5 ml") || String(d.nombre || "").toLowerCase().includes("dilu"))
+    .reduce((acc: number, d: any) => acc + Number(d.cantidad || 0), 0),
+  cajasBioseguridad: nuevosDescartables
+    .filter((d: any) => String(d.nombre || "").toLowerCase().includes("bioseguridad") || String(d.biologicoAsociado || "").toLowerCase().includes("bioseguridad"))
+    .reduce((acc: number, d: any) => acc + Number(d.cantidad || 0), 0),
+};
+await syncDescartablesCloud(resumenDescartables);
 
     setMensajeExito(true);
     setBusquedaDoc("");
@@ -2789,86 +2796,133 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* 3. INSUMOS Y MATERIAL DESCARTABLE */}
-                <div className="space-y-3 pt-4 border-t border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                      💉 Insumos y Material Descartable
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const cero = { jeringas01ml: 0, jeringas05ml: 0, jeringas5ml: 0, cajasBioseguridad: 0 };
-                        setStockDescartables(cero);
-                        guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, cero);
-                        await syncDescartablesCloud(cero);
-                      }}
-                      className="text-[11px] text-slate-400 hover:text-rose-300 underline"
-                    >
-                      Reiniciar a 0
-                    </button>
-                  </div>
+{/* 3. INSUMOS Y MATERIAL DESCARTABLE (DESDE CERO) */}
+<div className="space-y-3 pt-4 border-t border-slate-800">
+  <div className="flex items-center justify-between">
+    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+      💉 Insumos y Material Descartable ({descartablesASIC.length})
+    </h3>
+    {descartablesASIC.length > 0 && (
+      <button
+        type="button"
+        onClick={() => {
+          setDescartablesASIC([]);
+          guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, []);
+        }}
+        className="text-[11px] text-slate-400 hover:text-rose-300 underline"
+      >
+        Vaciar lista
+      </button>
+    )}
+  </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400 block">Jeringas 0.1 ml</span>
-                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas01ml}</span>
-                    </div>
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400 block">Jeringas 0.5 ml</span>
-                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas05ml}</span>
-                    </div>
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400 block">Jeringas 5 ml</span>
-                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.jeringas5ml}</span>
-                    </div>
-                    <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400 block">Cajas Bioseguridad</span>
-                      <span className="text-lg font-bold font-mono text-white">{stockDescartables.cajasBioseguridad}</span>
-                    </div>
-                  </div>
+  {descartablesASIC.length === 0 ? (
+    <p className="text-xs text-slate-400 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+      Sin descartables cargados. Agrega abajo el nombre del insumo, el biológico asociado y la cantidad.
+    </p>
+  ) : (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+      {descartablesASIC.map((item: any, idx: number) => (
+        <div
+          key={item.id || idx}
+          className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center gap-2"
+        >
+          <div className="space-y-0.5">
+            <div className="font-bold text-white">{item.nombre}</div>
+            <div className="text-cyan-300 font-mono text-[11px]">
+              Biológico: {item.biologicoAsociado}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono font-bold text-amber-300">{item.cantidad} und</span>
+            <button
+              type="button"
+              onClick={() => {
+                const nuevos = descartablesASIC.filter((_, i) => i !== idx);
+                setDescartablesASIC(nuevos);
+                guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, nuevos);
+              }}
+              className="text-rose-400 hover:text-rose-300 text-[11px] font-bold px-2 py-1 rounded bg-rose-950/40"
+            >
+              Quitar
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                    <select
-                      value={tipoInsumoCargar}
-                      onChange={(e) => setTipoInsumoCargar(e.target.value as any)}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-                    >
-                      <option value="jeringas01ml">Jeringas 0.1 ml (BCG)</option>
-                      <option value="jeringas05ml">Jeringas 0.5 ml (Pentavalente / SRP / Td)</option>
-                      <option value="jeringas5ml">Jeringas 5 ml (Dilución)</option>
-                      <option value="cajasBioseguridad">Cajas de Bioseguridad</option>
-                    </select>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Cantidad a ingresar"
-                      value={cantidadInsumoCargar}
-                      onChange={(e) => setCantidadInsumoCargar(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const cant = Number(cantidadInsumoCargar);
-                        if (!cant || cant <= 0) return;
-                        const actualizado = {
-                          ...stockDescartables,
-                          [tipoInsumoCargar]: (stockDescartables[tipoInsumoCargar] || 0) + cant,
-                        };
-                        setStockDescartables(actualizado);
-                        guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, actualizado);
-                        await syncDescartablesCloud(actualizado);
-                        setCantidadInsumoCargar("");
-                      }}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs"
-                    >
-                      + Sumar al Stock
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+    <input
+      type="text"
+      placeholder="Nombre (Ej: Jeringa 0.5 ml retráctil)"
+      value={nuevoNombreDescartable}
+      onChange={(e) => setNuevoNombreDescartable(e.target.value)}
+      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+    />
+    <select
+      value={nuevoBiologicoDescartable}
+      onChange={(e) => setNuevoBiologicoDescartable(e.target.value)}
+      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+    >
+      <option value="General / Múltiples Biológicos">General / Múltiples Biológicos</option>
+      <option value="Bioseguridad (Caja / Recipiente)">Bioseguridad (Caja / Recipiente)</option>
+      {CATALOGO_BIOLOGICOS_PAI.map((bio: any) => (
+        <option key={bio.nombre} value={bio.nombre}>
+          {bio.nombre}
+        </option>
+      ))}
+    </select>
+    <div className="flex gap-2">
+      <input
+        type="number"
+        min="1"
+        placeholder="Cantidad"
+        value={nuevaCantidadDescartable}
+        onChange={(e) => setNuevaCantidadDescartable(e.target.value)}
+        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono"
+      />
+      <button
+        type="button"
+        onClick={async () => {
+          const cant = Number(nuevaCantidadDescartable);
+          if (!nuevoNombreDescartable.trim() || !cant || cant <= 0) return;
+          const nuevoItem = {
+            id: `DESC-${Date.now()}`,
+            nombre: nuevoNombreDescartable.trim(),
+            biologicoAsociado: nuevoBiologicoDescartable,
+            cantidad: cant,
+          };
+          const nuevos = [...descartablesASIC, nuevoItem];
+          setDescartablesASIC(nuevos);
+          guardarInventarioLocal(equiposFrioASIC, inventarioLotesASIC, nuevos);
+          try {
+            await supabase.from("inventarios_biologicos_asic").upsert({
+              id: nuevoItem.id,
+              categoria: "jeringa",
+              nombre: `${nuevoItem.nombre} (${nuevoItem.biologicoAsociado})`,
+              lote: "DESCARTABLE",
+              fecha_vencimiento: "2028-12-31",
+              cantidad_disponible: cant,
+              estado_lote: "activo",
+              payload: nuevoItem,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "id" });
+          } catch (e) {
+            console.error("Error sync descartable:", e);
+          }
+          setNuevoNombreDescartable("");
+          setNuevaCantidadDescartable("");
+        }}
+        className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs whitespace-nowrap"
+      >
+        + Cargar
+      </button>
+    </div>
+  </div>
+</div>
+</div>
+)}
 
             {/* VISTA: CONSOLIDADO ASIC */}
             {puedeVerGestionASIC && pestañaActiva === "coordinacion" && (
